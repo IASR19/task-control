@@ -95,3 +95,28 @@ export function IconCheck(props: IconProps) {
     </svg>
   );
 }
+
+export function IconMenu(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+export function IconClock(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v5l3 2" />
+    </svg>
+  );
+}
+
+export function IconArchive(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 7h16v3H4zM6 10v9h12v-9M9 14h6" />
+    </svg>
+  );
+}

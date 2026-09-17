@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import { AuthProvider } from "@/context/auth-context";
 import { ThemeProvider } from "@/context/theme-context";
@@ -23,8 +23,20 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lousa — quadro vivo",
-  description: "O quadro da parede, com relógio. Tarefas, esforço e leitura da lousa por foto.",
+  title: "Lousa ops — quadro vivo",
+  description: "O quadro da parede, com relógio. Da lousa física para um quadro vivo.",
+  applicationName: "Lousa ops",
+  appleWebApp: { title: "Lousa" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#10161C" },
+    { media: "(prefers-color-scheme: light)", color: "#F4F6F8" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

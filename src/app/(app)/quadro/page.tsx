@@ -392,8 +392,10 @@ export default function QuadroPage() {
     <div>
       <div className="page-head">
         <div>
-          <p className="kicker">/quadro</p>
-          <h1>Backlog vivo.</h1>
+          <p className="kicker">O quadro da parede, com relógio.</p>
+          <h1>
+            Organize o seu dia <span className="mark">do seu jeito</span>.
+          </h1>
         </div>
         <div className="toolbar">
           <div className="view-tabs">
@@ -409,7 +411,7 @@ export default function QuadroPage() {
           </div>
           <button
             type="button"
-            className="btn-ink"
+            className="btn-ink new-task"
             onClick={() => {
               setEditing(null);
               setEditorOpen(true);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AuthLive } from "@/components/auth-live";
+import { BrandMark } from "@/components/brand-mark";
 import { Spinner } from "@/components/spinner";
 import { useAuth } from "@/context/auth-context";
 
@@ -43,13 +44,22 @@ export function AuthScreen({ mode }: { mode: "login" | "registro" }) {
           <Spinner label="Conferindo sessão…" />
         ) : (
           <>
-        <p className="kicker">Lousa</p>
-        <h1>{mode === "login" ? "Entra no quadro." : "Abre a sua lousa."}</h1>
+        <BrandMark href="/login" size="auth" />
+        <p className="brand-tag">O quadro da parede, com relógio.</p>
+        <h1>
+          {mode === "login" ? (
+            <>
+              Organize o seu dia <span className="mark">do seu jeito</span>.
+            </>
+          ) : (
+            "Abre a sua lousa."
+          )}
+        </h1>
         {mode === "registro" ? (
-          <p className="lead">
-            Cadastro por e-mail e senha. Cada conta vê só o próprio quadro.
-          </p>
-        ) : null}
+          <p className="lead">Cadastro por e-mail e senha. Cada conta vê só o próprio quadro.</p>
+        ) : (
+          <p className="lead">Da lousa física para um quadro vivo.</p>
+        )}
         <form onSubmit={onSubmit}>
           {mode === "registro" ? (
             <label>

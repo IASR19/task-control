@@ -2,12 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { BrandMark } from "@/components/brand-mark";
+import { IconArchive, IconCamera, IconClock, IconMark, IconMenu, IconStop } from "@/components/icons";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { formatClock } from "@/lib/format";
 import { emitTimer, readTimerDetail, TIMER_EVENT, type LiveTimer } from "@/lib/timer-sync";
-import { IconStop } from "@/components/icons";
-import { ThemeSwitch } from "@/components/theme-switch";
+
+const LINKS = [
+  { href: "/quadro", label: "Quadro", Icon: IconMark },
+  { href: "/atividades", label: "Atividades", Icon: IconClock },
+  { href: "/arquivo", label: "Arquivo", Icon: IconArchive },
+  { href: "/lousa", label: "Foto", Icon: IconCamera },
+];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -15,6 +23,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [active, setActive] = useState<LiveTimer | null>(null);
   const [now, setNow] = useState(0);
+  const [menu, setMenu] = useState(false);
 
   async function loadTimer() {
     try {
@@ -49,31 +58,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return () => window.clearInterval(tick);
   }, []);
 
-  const elapsed = active
-    ? Math.floor((now - Date.parse(active.startedAt)) / 1000)
-    : 0;
+  useEffect(() => {
+    setMenu(false);
+  }, [pathname]);
 
-  const links = [
-    { href: "/quadro", label: "Quadro" },
-    { href: "/atividades", label: "Atividades" },
-    { href: "/arquivo", label: "Arquivo" },
-    { href: "/lousa", label: "Foto" },
-  ];
+  const elapsed = active ? Math.floor((now - Date.parse(active.startedAt)) / 1000) : 0;
+
+  function go(href: string) {
+    router.push(href);
+  }
 
   return (
     <div className="frame">
       <header className="rail">
-        <div className="brand-block">
-          <p className="brand">Lousa</p>
-          <p className="brand-sub">ops</p>
-        </div>
-        <nav className="main-nav">
-          {links.map((link) => (
+        <BrandMark />
+        <nav className="main-nav" aria-label="Principal">
+          {LINKS.map((link) => (
             <button
               key={link.href}
               type="button"
               className={pathname.startsWith(link.href) ? "nav-link active" : "nav-link"}
-              onClick={() => router.push(link.href)}
+              onClick={() => go(link.href)}
             >
               {link.label}
             </button>
@@ -86,6 +91,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
             Sair
           </button>
         </div>
+        <button
+          type="button"
+          className="menu-btn"
+          aria-label={menu ? "Fechar menu" : "Abrir menu"}
+          aria-expanded={menu}
+          onClick={() => setMenu((open) => !open)}
+        >
+          <IconMenu width={18} height={18} />
+        </button>
+        {menu ? (
+          <div className="rail-drawer">
+            <p className="user-name">{user?.name}</p>
+            <ThemeSwitch />
+            <button type="button" className="text-btn" onClick={() => void logout().then(() => router.push("/login"))}>
+              Sair
+            </button>
+          </div>
+        ) : null}
       </header>
       <div className="stage">{children}</div>
       {active ? (
@@ -115,6 +138,22 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       ) : null}
+      <nav className="tabbar" aria-label="Principal">
+        {LINKS.map((link) => {
+          const on = pathname.startsWith(link.href);
+          return (
+            <button
+              key={link.href}
+              type="button"
+              className={on ? "tab-link on" : "tab-link"}
+              onClick={() => go(link.href)}
+            >
+              <link.Icon width={18} height={18} />
+              {link.label}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
