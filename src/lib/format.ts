@@ -16,10 +16,13 @@ export function formatClock(totalSeconds: number) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }
 
-export function formatSessionUntil(iso: string | null) {
-  if (!iso) return "";
-  const date = new Date(iso);
-  return date.toLocaleString("pt-BR", {
+export function formatDayLabel(isoDate: string) {
+  const date = new Date(`${isoDate}T12:00:00`);
+  return date.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" });
+}
+
+export function formatStamp(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -27,7 +30,10 @@ export function formatSessionUntil(iso: string | null) {
   });
 }
 
-export function formatDayLabel(isoDate: string) {
-  const date = new Date(`${isoDate}T12:00:00`);
-  return date.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" });
+export function formatClockTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }

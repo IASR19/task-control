@@ -4,37 +4,42 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
-import { formatClock, formatSessionUntil } from "@/lib/format";
+import { formatClock } from "@/lib/format";
+import { emitTimer, readTimerDetail, TIMER_EVENT, type LiveTimer } from "@/lib/timer-sync";
 import { IconStop } from "@/components/icons";
-
-type ActiveSession = {
-  id: string;
-  taskId: string;
-  startedAt: string;
-  taskTitle: string;
-  elapsedSeconds: number;
-};
+import { ThemeSwitch } from "@/components/theme-switch";
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { user, logout, accessExpiresAt } = useAuth();
+  const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const [active, setActive] = useState<ActiveSession | null>(null);
+  const [active, setActive] = useState<LiveTimer | null>(null);
   const [now, setNow] = useState(0);
 
   async function loadTimer() {
-    const data = await api<{ session: ActiveSession | null }>("/api/tasks/timer");
-    setActive(data.session);
+    try {
+      const data = await api<{ session: LiveTimer | null }>("/api/tasks/timer");
+      setActive(data.session);
+    } catch {
+      /* ignore */
+    }
   }
 
   useEffect(() => {
     void loadTimer();
     const poll = window.setInterval(() => void loadTimer(), 20000);
-    const onChange = () => void loadTimer();
-    window.addEventListener("lousa-timer", onChange);
+    const onChange = (event: Event) => {
+      const detail = readTimerDetail(event);
+      if (!detail) {
+        void loadTimer();
+        return;
+      }
+      setActive(detail.session);
+    };
+    window.addEventListener(TIMER_EVENT, onChange);
     return () => {
       window.clearInterval(poll);
-      window.removeEventListener("lousa-timer", onChange);
+      window.removeEventListener(TIMER_EVENT, onChange);
     };
   }, []);
 
@@ -50,7 +55,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   const links = [
     { href: "/quadro", label: "Quadro" },
-    { href: "/analise", label: "Esforço" },
+    { href: "/atividades", label: "Atividades" },
+    { href: "/arquivo", label: "Arquivo" },
     { href: "/lousa", label: "Foto" },
   ];
 
@@ -59,7 +65,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <header className="rail">
         <div className="brand-block">
           <p className="brand">Lousa</p>
-          <p className="brand-sub">quadro vivo</p>
+          <p className="brand-sub">ops</p>
         </div>
         <nav className="main-nav">
           {links.map((link) => (
@@ -74,8 +80,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="rail-meta">
+          <ThemeSwitch />
           <p className="user-name">{user?.name}</p>
-          <p className="session-exp">sessão até {formatSessionUntil(accessExpiresAt)}</p>
           <button type="button" className="text-btn" onClick={() => void logout().then(() => router.push("/login"))}>
             Sair
           </button>
@@ -90,13 +96,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             className="dock-stop"
-            onClick={async () => {
-              await api("/api/tasks/timer", {
-                method: "POST",
-                body: JSON.stringify({ taskId: active.taskId, action: "stop" }),
+            onClick={() => {
+              const snapshot = active;
+              emitTimer(null, {
+                taskId: snapshot.taskId,
+                seconds: Math.max(1, Math.round((Date.now() - Date.parse(snapshot.startedAt)) / 1000)),
               });
-              setActive(null);
-              window.dispatchEvent(new Event("lousa-timer"));
+              void api("/api/tasks/timer", {
+                method: "POST",
+                body: JSON.stringify({ taskId: snapshot.taskId, action: "stop" }),
+              }).catch(() => {
+                emitTimer(snapshot);
+              });
             }}
           >
             <IconStop width={14} height={14} />

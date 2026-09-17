@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IngestReview } from "@/components/ingest-review";
+import { Spinner } from "@/components/spinner";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/compress-image";
 import { stampFor } from "@/lib/priority";
-import type { BoardSnapshot, ReconcileSummary } from "@/lib/types";
+import type { BoardSnapshot, ExtractedBoard, ReconcileSummary } from "@/lib/types";
 
 export default function LousaPage() {
   const [busy, setBusy] = useState(false);
@@ -12,10 +14,18 @@ export default function LousaPage() {
   const [summary, setSummary] = useState<ReconcileSummary | null>(null);
   const [history, setHistory] = useState<BoardSnapshot[]>([]);
   const [seedMessage, setSeedMessage] = useState("");
+  const [extracted, setExtracted] = useState<ExtractedBoard | null>(null);
+  const [pendingImage, setPendingImage] = useState<{ base64: string; mimeType: string } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   async function loadHistory() {
-    const data = await api<{ snapshots: BoardSnapshot[] }>("/api/board/history");
-    setHistory(data.snapshots);
+    setHistoryLoading(true);
+    try {
+      const data = await api<{ snapshots: BoardSnapshot[] }>("/api/board/history");
+      setHistory(data.snapshots);
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -26,16 +36,41 @@ export default function LousaPage() {
     setBusy(true);
     setError("");
     setSummary(null);
+    setExtracted(null);
     try {
       const { base64, mimeType } = await compressImage(file);
-      const result = await api<{ summary: ReconcileSummary }>("/api/board/ingest", {
+      setPendingImage({ base64, mimeType });
+      const result = await api<{ extracted: ExtractedBoard }>("/api/board/ingest", {
         method: "POST",
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
-      setSummary(result.summary);
-      await loadHistory();
+      setExtracted(result.extracted);
     } catch (err) {
       setError(err instanceof Error ? err.message : "A foto não foi lida.");
+      setPendingImage(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyExtracted(next: ExtractedBoard) {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{ summary: ReconcileSummary }>("/api/board/apply", {
+        method: "POST",
+        body: JSON.stringify({
+          extracted: next,
+          imageBase64: pendingImage?.base64,
+          mimeType: pendingImage?.mimeType,
+        }),
+      });
+      setSummary(result.summary);
+      setExtracted(null);
+      setPendingImage(null);
+      await loadHistory();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não deu para aplicar a leitura.");
     } finally {
       setBusy(false);
     }
@@ -45,30 +80,49 @@ export default function LousaPage() {
     <div>
       <div className="page-head">
         <div>
-          <p className="kicker">Foto da lousa</p>
-          <h1>Aponta a câmera para o quadro.</h1>
+          <p className="kicker">/ingest</p>
+          <h1>Scan do quadro.</h1>
         </div>
       </div>
       <p className="lead" style={{ maxWidth: "38rem", color: "var(--ink-soft)", marginTop: 0 }}>
-        A leitura compara com o que já está salvo: linha nova entra; prioridade diferente vira
-        remanejada; o que sumiu da parede é marcado como concluído. Tarefas criadas à mão não
-        desaparecem só porque não estavam na foto.
+        A leitura só puxa o rascunho. Você edita projeto, linha e prioridade e só então grava: linha
+        nova entra; prioridade diferente vira remanejada; o que sumiu da parede é marcado como
+        concluído. Tarefas criadas à mão não desaparecem só porque não estavam na foto.
       </p>
 
-      <label className="dropzone">
-        <input
-          type="file"
-          accept="image/*"
-          disabled={busy}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void onFile(file);
+      {extracted ? (
+        <IngestReview
+          key={JSON.stringify(extracted)}
+          extracted={extracted}
+          busy={busy}
+          error={error}
+          onApply={applyExtracted}
+          onDiscard={() => {
+            setExtracted(null);
+            setPendingImage(null);
+            setError("");
           }}
         />
-        <span>{busy ? "Lendo a parede…" : "Solta a foto aqui, ou clica para escolher."}</span>
-      </label>
+      ) : (
+        <label className="dropzone">
+          <input
+            type="file"
+            accept="image/*"
+            disabled={busy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void onFile(file);
+            }}
+          />
+          {busy ? (
+            <Spinner label="Lendo a parede…" size={48} />
+          ) : (
+            <span>Solta a foto aqui, ou clica para escolher.</span>
+          )}
+        </label>
+      )}
 
-      {error ? <p className="form-error" style={{ marginTop: 16 }}>{error}</p> : null}
+      {error && !extracted ? <p className="form-error" style={{ marginTop: 16 }}>{error}</p> : null}
 
       <p style={{ marginTop: 20 }}>
         Primeira vez e o quadro ainda está vazio? Dá para carregar o recorte de 17/09 sem passar pela
@@ -140,9 +194,12 @@ export default function LousaPage() {
         </table>
       ) : null}
 
-      {history.length > 0 ? (
+      {historyLoading ? (
+        <Spinner label="Puxando leituras…" />
+      ) : history.length > 0 ? (
         <>
           <h2 style={{ fontSize: 28, fontStyle: "italic", margin: "36px 0 8px" }}>Leituras anteriores</h2>
+          <p className="sheet-hint">Só entra aqui o que você aplicou depois de conferir.</p>
           <table className="review-table">
             <thead>
               <tr>

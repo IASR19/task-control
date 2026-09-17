@@ -18,7 +18,7 @@ A leitura faz três coisas:
 | No quadro novo | No Lousa |
 |---|---|
 | Linha que não existia | **Inclui** |
-| Mesma linha, prioridade diferente | Marca **remanejada** e atualiza o carimbo (1 / 2 / 3 / O) |
+| Mesma linha, prioridade diferente | Marca **remanejada** e atualiza o carimbo (0 / 1 / 2 / 3) |
 | Linha da foto anterior que sumiu | Marca **concluída** (saiu da parede) |
 
 Tarefas criadas à mão não são apagadas só porque a foto não as trouxe.
@@ -49,7 +49,7 @@ Se o Postgres local não usa TLS: `DATABASE_SSL=false`.
 | `JWT_ACCESS_EXPIRES_IN` | `8h` |
 | `JWT_REFRESH_EXPIRES_IN` | `14d` |
 | `GEMINI_API_KEY` | chave da Google AI Studio |
-| `GEMINI_MODEL` | `gemini-2.0-flash` |
+| `GEMINI_MODEL` | `gemini-3.6-flash` |
 
 Não commite a chave. Se ela já apareceu num chat, gere outra na AI Studio.
 
@@ -75,4 +75,4 @@ Abre `http://localhost:3000`.
 
 ## Carimbos da parede
 
-`1` hoje · `2` amanhã · `3` esta semana · `O` baixa prioridade
+`0` hoje · `1` amanhã · `2` esta semana · `3` sem prioridade

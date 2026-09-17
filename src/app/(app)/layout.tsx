@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { Shell } from "@/components/shell";
+import { Spinner } from "@/components/spinner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuth();
@@ -14,7 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [ready, user, router]);
 
   if (!ready || !user) {
-    return <p className="kicker" style={{ padding: 24 }}>Conferindo sessão…</p>;
+    return <Spinner label="Conferindo sessão…" />;
   }
 
   return <Shell>{children}</Shell>;

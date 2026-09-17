@@ -58,6 +58,9 @@ export async function PATCH(request: Request) {
     if (!updated[0]) throw new HttpError(404, "Projeto não encontrado.");
     return jsonOk({ project: updated[0] });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return handleError(new HttpError(400, error.issues[0]?.message ?? "Nome inválido."));
+    }
     return handleError(error);
   }
 }

@@ -1,12 +1,15 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { projects, tasks, timeSessions } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { handleError, jsonOk } from "@/lib/http";
+import { getTaskForUser } from "@/lib/queries";
 
 export async function GET(request: Request) {
   try {
     const user = await requireUser(request);
+    const taskId = new URL(request.url).searchParams.get("taskId");
+    if (taskId) await getTaskForUser(user.id, taskId);
     const rows = await db()
       .select({
         id: timeSessions.id,
@@ -20,9 +23,9 @@ export async function GET(request: Request) {
       .from(timeSessions)
       .innerJoin(tasks, eq(tasks.id, timeSessions.taskId))
       .innerJoin(projects, eq(projects.id, tasks.projectId))
-      .where(eq(timeSessions.userId, user.id))
+      .where(taskId ? and(eq(timeSessions.userId, user.id), eq(timeSessions.taskId, taskId)) : eq(timeSessions.userId, user.id))
       .orderBy(desc(timeSessions.startedAt))
-      .limit(80);
+      .limit(taskId ? 200 : 80);
 
     return jsonOk({
       sessions: rows.map((row) => ({

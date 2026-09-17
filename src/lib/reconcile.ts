@@ -2,14 +2,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { projects, tasks } from "@/db/schema";
 import { normalizeKey, parsePriority } from "@/lib/priority";
-import type { Priority, ReconcileSummary } from "@/lib/types";
+import type { ExtractedBoard, Priority, ReconcileSummary } from "@/lib/types";
 
-export type ExtractedBoard = {
-  projects: {
-    name: string;
-    tasks: { title: string; priority: number; order?: number }[];
-  }[];
-};
+export type { ExtractedBoard };
 
 const MATCH_THRESHOLD = 0.72;
 

@@ -26,6 +26,17 @@ export async function POST(request: Request) {
     const open = openRows[0];
 
     if (body.action === "start") {
+      if (open?.taskId === body.taskId) {
+        return jsonOk({
+          session: {
+            id: open.id,
+            taskId: open.taskId,
+            startedAt: open.startedAt.toISOString(),
+            durationSeconds: 0,
+          },
+        });
+      }
+      let closed: { taskId: string; durationSeconds: number } | undefined;
       if (open) {
         const endedAt = new Date();
         const duration = Math.max(
@@ -36,6 +47,7 @@ export async function POST(request: Request) {
           .update(timeSessions)
           .set({ endedAt, durationSeconds: duration })
           .where(eq(timeSessions.id, open.id));
+        closed = { taskId: open.taskId, durationSeconds: duration };
         if (open.taskId !== body.taskId) {
           await database
             .update(tasks)
@@ -52,11 +64,19 @@ export async function POST(request: Request) {
         .update(tasks)
         .set({ status: "in_progress", updatedAt: new Date() })
         .where(eq(tasks.id, body.taskId));
-      return jsonOk({ session: started[0] });
+      return jsonOk({
+        session: {
+          id: started[0].id,
+          taskId: started[0].taskId,
+          startedAt: started[0].startedAt.toISOString(),
+          durationSeconds: 0,
+        },
+        closed,
+      });
     }
 
     if (!open || open.taskId !== body.taskId) {
-      throw new HttpError(400, "Não há timer ligado nessa tarefa.");
+      return jsonOk({ session: null });
     }
     const endedAt = new Date();
     const duration = Math.max(
@@ -72,7 +92,15 @@ export async function POST(request: Request) {
       .update(tasks)
       .set({ status: "open", updatedAt: endedAt })
       .where(eq(tasks.id, body.taskId));
-    return jsonOk({ session: stopped[0] });
+    return jsonOk({
+      session: {
+        id: stopped[0].id,
+        taskId: stopped[0].taskId,
+        startedAt: stopped[0].startedAt.toISOString(),
+        endedAt: stopped[0].endedAt ? stopped[0].endedAt.toISOString() : endedAt.toISOString(),
+        durationSeconds: duration,
+      },
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleError(new HttpError(400, "Pedido de timer inválido."));

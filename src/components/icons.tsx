@@ -70,3 +70,28 @@ export function IconClose(props: IconProps) {
     </svg>
   );
 }
+
+export function IconSearch(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M16 16l5 5" />
+    </svg>
+  );
+}
+
+export function IconEdit(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 16.5V20h3.5L19 8.5 15.5 5 4 16.5z" />
+    </svg>
+  );
+}
+
+export function IconCheck(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M5 12l5 5L20 7" />
+    </svg>
+  );
+}

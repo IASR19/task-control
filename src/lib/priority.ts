@@ -6,24 +6,24 @@ export const PRIORITY_COLUMNS: {
   stamp: string;
   hint: string;
 }[] = [
-  { value: 1, label: "Hoje", stamp: "1", hint: "Cai no dia" },
-  { value: 2, label: "Amanhã", stamp: "2", hint: "Segura até amanhã" },
-  { value: 3, label: "Esta semana", stamp: "3", hint: "Ainda nesta semana" },
-  { value: 0, label: "Baixa", stamp: "O", hint: "Sem pressa — o círculo da lousa" },
+  { value: 0, label: "Hoje", stamp: "0", hint: "Cai no dia" },
+  { value: 1, label: "Amanhã", stamp: "1", hint: "Segura até amanhã" },
+  { value: 2, label: "Esta semana", stamp: "2", hint: "Ainda nesta semana" },
+  { value: 3, label: "Sem prioridade", stamp: "3", hint: "Sem carimbo de urgência" },
 ];
 
 export function stampFor(priority: Priority) {
-  return PRIORITY_COLUMNS.find((column) => column.value === priority)?.stamp ?? "O";
+  return PRIORITY_COLUMNS.find((column) => column.value === priority)?.stamp ?? "3";
 }
 
 export function labelFor(priority: Priority) {
-  return PRIORITY_COLUMNS.find((column) => column.value === priority)?.label ?? "Baixa";
+  return PRIORITY_COLUMNS.find((column) => column.value === priority)?.label ?? "Sem prioridade";
 }
 
 export function parsePriority(value: unknown): Priority {
   const n = Number(value);
-  if (n === 1 || n === 2 || n === 3 || n === 0) return n;
-  return 0;
+  if (n === 0 || n === 1 || n === 2 || n === 3) return n;
+  return 3;
 }
 
 export function normalizeKey(value: string) {

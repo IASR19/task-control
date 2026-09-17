@@ -1,8 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { projects, tasks, timeSessions } from "@/db/schema";
+import { projects, taskChecks, tasks, timeSessions } from "@/db/schema";
 import { HttpError } from "@/lib/http";
-import type { Priority, Task, TaskStatus } from "@/lib/types";
+import type { Effort, Priority, Task, TaskStatus } from "@/lib/types";
 
 export async function listProjects(userId: string) {
   const rows = await db()
@@ -20,7 +20,7 @@ export async function listProjects(userId: string) {
   return rows;
 }
 
-export async function listTasks(userId: string) {
+export async function listTasks(userId: string, status?: TaskStatus, taskId?: string) {
   const rows = await db()
     .select({
       id: tasks.id,
@@ -33,6 +33,7 @@ export async function listTasks(userId: string) {
       status: tasks.status,
       source: tasks.source,
       sortOrder: tasks.sortOrder,
+      effort: tasks.effort,
       completedAt: tasks.completedAt,
       createdAt: tasks.createdAt,
       updatedAt: tasks.updatedAt,
@@ -40,12 +41,25 @@ export async function listTasks(userId: string) {
         select sum(${timeSessions.durationSeconds})
         from ${timeSessions}
         where ${timeSessions.taskId} = ${tasks.id}
+          and ${timeSessions.endedAt} is not null
+      ), 0)::int`,
+      checkTotal: sql<number>`coalesce((
+        select count(*) from ${taskChecks} where ${taskChecks.taskId} = ${tasks.id}
+      ), 0)::int`,
+      checkDone: sql<number>`coalesce((
+        select count(*) from ${taskChecks} where ${taskChecks.taskId} = ${tasks.id} and ${taskChecks.done}
       ), 0)::int`,
     })
     .from(tasks)
     .innerJoin(projects, eq(projects.id, tasks.projectId))
-    .where(eq(tasks.userId, userId))
-    .orderBy(tasks.priority, projects.sortOrder, tasks.sortOrder, tasks.createdAt);
+    .where(
+      and(
+        eq(tasks.userId, userId),
+        status ? eq(tasks.status, status) : undefined,
+        taskId ? eq(tasks.id, taskId) : undefined,
+      ),
+    )
+    .orderBy(tasks.priority, tasks.sortOrder, tasks.createdAt);
 
   return rows.map(
     (row): Task => ({
@@ -54,6 +68,10 @@ export async function listTasks(userId: string) {
       previousPriority: (row.previousPriority as Priority | null) ?? null,
       status: row.status as TaskStatus,
       source: row.source as Task["source"],
+      effort: (row.effort as Effort) ?? 0,
+      checkTotal: Number(row.checkTotal) || 0,
+      checkDone: Number(row.checkDone) || 0,
+      effortSeconds: Number(row.effortSeconds) || 0,
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

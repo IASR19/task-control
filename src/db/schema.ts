@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -50,12 +51,13 @@ export const tasks = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     notes: text("notes").notNull().default(""),
-    priority: smallint("priority").notNull().default(0),
+    priority: smallint("priority").notNull().default(3),
     previousPriority: smallint("previous_priority"),
     status: text("status").notNull().default("open"),
     source: text("source").notNull().default("manual"),
     boardKey: text("board_key").notNull().default(""),
     sortOrder: integer("sort_order").notNull().default(0),
+    effort: smallint("effort").notNull().default(0),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -77,6 +79,45 @@ export const timeSessions = pgTable("time_sessions", {
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
   durationSeconds: integer("duration_seconds").notNull().default(0),
+});
+
+export const taskComments = pgTable("task_comments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const taskRefs = pgTable("task_refs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  label: text("label").notNull().default(""),
+  url: text("url").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const taskChecks = pgTable("task_checks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  done: boolean("done").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const boardSnapshots = pgTable("board_snapshots", {
