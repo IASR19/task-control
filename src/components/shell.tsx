@@ -43,7 +43,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         void loadTimer();
         return;
       }
-      setActive(detail.session);
+      if (detail.session !== undefined) setActive(detail.session);
     };
     window.addEventListener(TIMER_EVENT, onChange);
     return () => {

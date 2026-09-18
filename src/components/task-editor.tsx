@@ -4,10 +4,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { IconClose } from "@/components/icons";
 import { PriorityStamp } from "@/components/priority-stamp";
 import { api } from "@/lib/api";
+import { saoPauloKey } from "@/lib/dates";
 import { EFFORT_SCALE } from "@/lib/effort";
 import { formatClockTime, formatDuration, formatStamp } from "@/lib/format";
 import { PRIORITY_COLUMNS } from "@/lib/priority";
-import { TIMER_EVENT } from "@/lib/timer-sync";
+import { emitClosed, TIMER_EVENT } from "@/lib/timer-sync";
 import type { Effort, Priority, Project, Task, TaskCheck, TaskComment, TaskRef, TaskStatus, TimeSession } from "@/lib/types";
 
 type Props = {
@@ -45,6 +46,12 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
   const [refLabel, setRefLabel] = useState("");
   const [sessions, setSessions] = useState<TimeSession[]>([]);
   const [now, setNow] = useState(Date.now());
+  const [logHours, setLogHours] = useState("0");
+  const [logMinutes, setLogMinutes] = useState("30");
+  const [logDate, setLogDate] = useState(saoPauloKey());
+  const [logStart, setLogStart] = useState("");
+  const [logBusy, setLogBusy] = useState(false);
+  const [logError, setLogError] = useState("");
 
   async function loadThread(taskId: string) {
     const [commentData, refData, checkData, sessionData] = await Promise.all([
@@ -58,6 +65,15 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
     setChecks(checkData.checks);
     setSessions(sessionData.sessions);
   }
+
+  useEffect(() => {
+    if (!open || !task) return;
+    setLogDate(saoPauloKey());
+    setLogHours("0");
+    setLogMinutes("30");
+    setLogStart("");
+    setLogError("");
+  }, [open, task?.id]);
 
   useEffect(() => {
     if (!open || !task) {
@@ -106,6 +122,48 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
       setError(err instanceof Error ? err.message : "Não salvou.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function logTime(event: FormEvent) {
+    event.preventDefault();
+    if (!task) return;
+    const hours = Math.max(0, Number(logHours) || 0);
+    const minutes = Math.max(0, Number(logMinutes) || 0);
+    const durationSeconds = hours * 3600 + minutes * 60;
+    if (durationSeconds < 60) {
+      setLogError("Lança pelo menos 1 minuto.");
+      return;
+    }
+    const startedAt = logStart
+      ? new Date(`${logDate}T${logStart}:00`)
+      : logDate === saoPauloKey()
+        ? new Date(Date.now() - durationSeconds * 1000)
+        : new Date(`${logDate}T09:00:00`);
+    if (Number.isNaN(startedAt.getTime())) {
+      setLogError("Data de início inválida.");
+      return;
+    }
+    setLogBusy(true);
+    setLogError("");
+    try {
+      const created = await api<{ session: TimeSession }>("/api/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          taskId: task.id,
+          durationSeconds,
+          startedAt: startedAt.toISOString(),
+        }),
+      });
+      setSessions((current) => [created.session, ...current]);
+      emitClosed({ taskId: task.id, seconds: durationSeconds });
+      setLogHours("0");
+      setLogMinutes("30");
+      setLogStart("");
+    } catch (err) {
+      setLogError(err instanceof Error ? err.message : "Não lançou o tempo.");
+    } finally {
+      setLogBusy(false);
     }
   }
 
@@ -245,7 +303,7 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
             <section>
               <p className="kicker">Iterações</p>
               {sessions.length === 0 ? (
-                <p className="empty-col">Ainda não ligou o timer nesta linha.</p>
+                <p className="empty-col">Ainda não ligou o timer. Lança à mão se esqueceu o play.</p>
               ) : (
                 <ol className="session-list">
                   {sessions.map((item, index) => {
@@ -263,11 +321,61 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
                           </span>
                         </div>
                         <span className="dur">{formatDuration(seconds)}</span>
+                        {running ? null : (
+                          <button
+                            type="button"
+                            className="text-btn"
+                            onClick={async () => {
+                              if (!window.confirm("Apagar esse lançamento?")) return;
+                              await api(`/api/sessions?id=${item.id}`, { method: "DELETE" });
+                              setSessions((current) => current.filter((row) => row.id !== item.id));
+                              emitClosed({ taskId: task.id, seconds: -item.durationSeconds });
+                            }}
+                          >
+                            apagar
+                          </button>
+                        )}
                       </li>
                     );
                   })}
                 </ol>
               )}
+              <form className="time-log" onSubmit={(event) => void logTime(event)}>
+                <label>
+                  h
+                  <input
+                    type="number"
+                    min={0}
+                    max={24}
+                    inputMode="numeric"
+                    value={logHours}
+                    onChange={(event) => setLogHours(event.target.value)}
+                  />
+                </label>
+                <label>
+                  min
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    inputMode="numeric"
+                    value={logMinutes}
+                    onChange={(event) => setLogMinutes(event.target.value)}
+                  />
+                </label>
+                <label>
+                  dia
+                  <input type="date" value={logDate} onChange={(event) => setLogDate(event.target.value)} required />
+                </label>
+                <label>
+                  início
+                  <input type="time" value={logStart} onChange={(event) => setLogStart(event.target.value)} />
+                </label>
+                <button type="submit" className="btn-ghost" disabled={logBusy}>
+                  {logBusy ? "Lançando…" : "Lançar tempo"}
+                </button>
+                {logError ? <p className="form-error">{logError}</p> : null}
+              </form>
             </section>
 
             <section>

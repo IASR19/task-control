@@ -1654,7 +1654,7 @@ h1, h2 {
 
 .session-list li {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: 36px 1fr auto auto;
   gap: 10px;
   align-items: baseline;
   padding: 8px 0;
@@ -1679,6 +1679,40 @@ h1, h2 {
 
 .session-list li.live .dur {
   color: var(--moss);
+}
+
+.time-log {
+  display: grid;
+  grid-template-columns: 72px 72px 1fr 1fr;
+  gap: 8px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.time-log label {
+  display: grid;
+  gap: 4px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.time-log input {
+  border: 1px solid var(--rule);
+  background: var(--lift);
+  padding: 8px 8px;
+  color: var(--ink);
+}
+
+.time-log .form-error,
+.time-log button {
+  grid-column: 1 / -1;
+}
+
+.time-log button {
+  justify-self: start;
 }
 
 .log-row.apontamento {
@@ -1863,6 +1897,7 @@ h1, h2 {
     padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
   }
   .filter-pills { overflow-x: auto; flex-wrap: nowrap; }
+  .time-log { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 640px) {

@@ -104,20 +104,24 @@ export default function QuadroPage() {
         setTasks((current) =>
           current.map((item) => {
             if (item.id !== detail.closed?.taskId) {
+              if (detail.session === undefined) return item;
               return item.status === "in_progress" && item.id !== detail.session?.taskId
                 ? { ...item, status: "open" }
                 : item;
             }
-            const next = item.effortSeconds + detail.closed.seconds;
+            const next = Math.max(0, item.effortSeconds + detail.closed.seconds);
             effortBanked.current[item.id] = next;
             return {
               ...item,
-              status: detail.session?.taskId === item.id ? "in_progress" : "open",
               effortSeconds: next,
+              ...(detail.session === undefined
+                ? {}
+                : { status: detail.session?.taskId === item.id ? "in_progress" : "open" }),
             };
           }),
         );
       }
+      if (detail.session === undefined) return;
       if (detail.session) {
         startedAtRef.current = detail.session.startedAt;
         setTimerStartedAt(detail.session.startedAt);
