@@ -75,7 +75,7 @@ export const TOURS: Record<TourId, TourSegment[]> = {
         { target: "shared-form", title: "Mande uma task", body: "Título, descrição (pode colar imagem) e data limite opcional." },
         { target: "shared-assignees", title: "Quem cuida", body: "Escolha os responsáveis entre as pessoas do projeto. Quem cria a task já entra como responsável." },
         { target: "shared-list", title: "Tudo do projeto", body: "Abas Todas, Criei e Comigo. Cada task mostra se está na fila, em execução ou concluída." },
-        { target: "shared-card", title: "Execute daqui", body: "O play conta o seu tempo e o quadrado conclui. Abrindo o card: iterações, checklist e comentários. Só quem criou apaga ou muda os responsáveis." },
+        { target: "shared-card", title: "Execute daqui", body: "O play conta o seu tempo e o quadrado conclui. Abrindo o card: iterações, checklist e comentários. Quem criou (ou o dono do projeto) apaga e muda responsáveis." },
         { target: "workspace-switch", title: "Trocar de lousa", body: "Use este seletor pra voltar pra Minha lousa ou ir pra outros projetos compartilhados." },
       ],
     },

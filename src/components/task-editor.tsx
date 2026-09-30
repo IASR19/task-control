@@ -275,7 +275,7 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, on
             <button type="submit" className="btn-ink" disabled={busy}>
               {busy ? "Salvando…" : task ? "Atualizar" : "Criar"}
             </button>
-            {task && onDelete && task.ownerId === user?.id ? (
+            {task && onDelete ? (
               <button
                 type="button"
                 className="text-btn danger"

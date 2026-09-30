@@ -192,14 +192,16 @@ export async function DELETE(request: Request) {
     const id = searchParams.get("id");
     if (!id) throw new HttpError(400, "Informe a tarefa.");
     const [task] = await db()
-      .select({ projectId: tasks.projectId, ownerId: sql<string>`${taskOwnerId}` })
+      .select({ projectId: tasks.projectId, boardOwnerId: tasks.userId, ownerId: sql<string>`${taskOwnerId}` })
       .from(tasks)
       .where(eq(tasks.id, id))
       .limit(1);
     if (!task) throw new HttpError(404, "Tarefa não encontrada.");
-    // Só quem criou apaga, inclusive o convidado (que precisa manter acesso ao projeto).
+    // Apaga quem criou (o convidado precisa manter acesso ao projeto) ou o dono do projeto, que modera tudo.
     await requireProjectAccess(user.id, task.projectId);
-    if (task.ownerId !== user.id) throw new HttpError(403, "Só quem criou a task pode apagar.");
+    if (task.ownerId !== user.id && task.boardOwnerId !== user.id) {
+      throw new HttpError(403, "Só quem criou a task ou o dono do projeto pode apagar.");
+    }
     await db().delete(tasks).where(eq(tasks.id, id));
     return jsonOk({ ok: true });
   } catch (error) {
