@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { taskChecks } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
-import { getTaskForUser } from "@/lib/queries";
+import { requireTaskAccess } from "@/lib/sharing";
+
+// A checklist é da task: dono do quadro e membros do projeto veem e mexem nos mesmos itens.
 
 function serialize(row: typeof taskChecks.$inferSelect) {
   return {
@@ -15,16 +17,23 @@ function serialize(row: typeof taskChecks.$inferSelect) {
   };
 }
 
+async function findCheck(userId: string, id: string) {
+  const [check] = await db().select().from(taskChecks).where(eq(taskChecks.id, id)).limit(1);
+  if (!check) throw new HttpError(404, "Item não encontrado.");
+  await requireTaskAccess(userId, check.taskId);
+  return check;
+}
+
 export async function GET(request: Request) {
   try {
     const user = await requireUser(request);
     const taskId = new URL(request.url).searchParams.get("taskId");
     if (!taskId) throw new HttpError(400, "Informe a tarefa.");
-    await getTaskForUser(user.id, taskId);
+    await requireTaskAccess(user.id, taskId);
     const rows = await db()
       .select()
       .from(taskChecks)
-      .where(and(eq(taskChecks.taskId, taskId), eq(taskChecks.userId, user.id)))
+      .where(eq(taskChecks.taskId, taskId))
       .orderBy(asc(taskChecks.sortOrder), asc(taskChecks.createdAt));
     return jsonOk({ checks: rows.map(serialize) });
   } catch (error) {
@@ -41,11 +50,11 @@ export async function POST(request: Request) {
         title: z.string().trim().min(1, "Escreve o item."),
       })
       .parse(await request.json());
-    await getTaskForUser(user.id, body.taskId);
+    await requireTaskAccess(user.id, body.taskId);
     const existing = await db()
       .select({ id: taskChecks.id })
       .from(taskChecks)
-      .where(and(eq(taskChecks.taskId, body.taskId), eq(taskChecks.userId, user.id)));
+      .where(eq(taskChecks.taskId, body.taskId));
     const inserted = await db()
       .insert(taskChecks)
       .values({
@@ -74,14 +83,7 @@ export async function PATCH(request: Request) {
         done: z.boolean().optional(),
       })
       .parse(await request.json());
-    const current = (
-      await db()
-        .select()
-        .from(taskChecks)
-        .where(and(eq(taskChecks.id, body.id), eq(taskChecks.userId, user.id)))
-        .limit(1)
-    )[0];
-    if (!current) throw new HttpError(404, "Item não encontrado.");
+    const current = await findCheck(user.id, body.id);
     const updated = await db()
       .update(taskChecks)
       .set({
@@ -104,11 +106,8 @@ export async function DELETE(request: Request) {
     const user = await requireUser(request);
     const id = new URL(request.url).searchParams.get("id");
     if (!id) throw new HttpError(400, "Informe o item.");
-    const deleted = await db()
-      .delete(taskChecks)
-      .where(and(eq(taskChecks.id, id), eq(taskChecks.userId, user.id)))
-      .returning();
-    if (!deleted[0]) throw new HttpError(404, "Item não encontrado.");
+    const current = await findCheck(user.id, id);
+    await db().delete(taskChecks).where(eq(taskChecks.id, current.id));
     return jsonOk({ ok: true });
   } catch (error) {
     return handleError(error);

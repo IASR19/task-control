@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
-import { projects, tasks, timeSessions } from "@/db/schema";
+import { projects, tasks, timeSessions, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { keyToDate, saoPauloKey, shiftKey } from "@/lib/dates";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
@@ -25,8 +25,9 @@ export async function GET(request: Request) {
     const fromDate = keyToDate(from);
     const toExclusive = keyToDate(shiftKey(to, 1));
 
+    // Próprias sessões + as de outras pessoas nas tasks do seu quadro (projetos compartilhados).
     const range = and(
-      eq(timeSessions.userId, user.id),
+      or(eq(timeSessions.userId, user.id), eq(tasks.userId, user.id)),
       lt(timeSessions.startedAt, toExclusive),
       or(isNull(timeSessions.endedAt), gte(timeSessions.endedAt, fromDate)),
     );
@@ -53,10 +54,13 @@ export async function GET(request: Request) {
         startedAt: timeSessions.startedAt,
         endedAt: timeSessions.endedAt,
         durationSeconds: timeSessions.durationSeconds,
+        personId: users.id,
+        personName: users.name,
       })
       .from(timeSessions)
       .innerJoin(tasks, eq(tasks.id, timeSessions.taskId))
       .innerJoin(projects, eq(projects.id, tasks.projectId))
+      .innerJoin(users, eq(users.id, timeSessions.userId))
       .where(and(...clauses))
       .orderBy(desc(timeSessions.startedAt))
       .limit(2000);
@@ -71,6 +75,8 @@ export async function GET(request: Request) {
       startedAt: row.startedAt.toISOString(),
       endedAt: row.endedAt ? row.endedAt.toISOString() : null,
       durationSeconds: liveSeconds(row.startedAt, row.endedAt, row.durationSeconds),
+      personId: row.personId,
+      personName: row.personName,
     }));
 
     const byProjectMap = new Map<string, { seconds: number; sessions: number }>();

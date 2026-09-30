@@ -67,8 +67,26 @@ export type GuestTask = {
   assignees: Person[];
   deadlineAt: string | null;
   imageCount: number;
+  effortSeconds: number;
+  checkTotal: number;
+  checkDone: number;
+  completedByName: string | null;
   createdAt: string;
   completedAt: string | null;
+};
+
+export type SharedOverview = {
+  totals: {
+    seconds: number;
+    weekSeconds: number;
+    openCount: number;
+    doneCount: number;
+    closedThisWeek: number;
+  };
+  byTask: { id: string; title: string; status: TaskStatus; seconds: number }[];
+  byPerson: { id: string; name: string; seconds: number; sessions: number }[];
+  byDay: { date: string; seconds: number }[];
+  weeklyClosed: { week: string; count: number }[];
 };
 
 export type Task = {
@@ -128,6 +146,8 @@ export type TaskComment = {
   id: string;
   body: string;
   createdAt: string;
+  authorId: string;
+  authorName: string;
 };
 
 export type TaskRef = {
@@ -147,6 +167,8 @@ export type TimeSession = {
   endedAt: string | null;
   durationSeconds: number;
   taskStatus?: TaskStatus;
+  personId?: string;
+  personName?: string;
 };
 
 export type ActivitiesPayload = {

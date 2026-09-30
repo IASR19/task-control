@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Avatar } from "@/components/avatar";
 import { Spinner } from "@/components/spinner";
 import { TaskEditor } from "@/components/task-editor";
+import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { formatLogHeading, saoPauloKey, shiftKey, startOfMonthKey, startOfWeekKey } from "@/lib/dates";
 import { formatClockTime, formatDayLabel, formatDuration, formatStamp } from "@/lib/format";
@@ -39,6 +42,8 @@ function sessionSeconds(session: TimeSession, now: number) {
 }
 
 export default function AtividadesPage() {
+  const router = useRouter();
+  const { user } = useAuth();
   const today = saoPauloKey();
   const [preset, setPreset] = useState<Preset>("semana");
   const [from, setFrom] = useState(startOfWeekKey());
@@ -117,7 +122,13 @@ export default function AtividadesPage() {
   async function openTask(taskId: string) {
     const payload = await api<{ tasks: Task[] }>(`/api/tasks?id=${taskId}`);
     const task = payload.tasks[0];
-    if (task) setEditing(task);
+    if (task) {
+      setEditing(task);
+      return;
+    }
+    // Task de um projeto compartilhado (não está no seu quadro): abre o projeto.
+    const projectId = data?.sessions.find((session) => session.taskId === taskId)?.projectId;
+    if (projectId) router.push(`/compartilhado/${projectId}`);
   }
 
   async function saveTask(payload: TaskSavePayload) {
@@ -311,6 +322,13 @@ export default function AtividadesPage() {
                       <span className={running ? "run-dot on" : "run-dot"} />
                       <button type="button" className="linkish" onClick={() => void openTask(session.taskId)}>
                         {session.taskTitle}
+                        {session.personId && session.personId !== user?.id ? (
+                          <Avatar
+                            person={{ id: session.personId, name: session.personName ?? "" }}
+                            size={16}
+                            hint="rodou"
+                          />
+                        ) : null}
                       </button>
                       <span className="proj-name">{session.projectName}</span>
                       <span className="mono">

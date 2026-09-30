@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { taskImages, tasks, users } from "@/db/schema";
+import { taskChecks, taskImages, tasks, timeSessions, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
 import { normalizeKey } from "@/lib/priority";
@@ -13,6 +13,7 @@ import type { GuestTask, TaskStatus } from "@/lib/types";
 
 const GUEST_PRIORITY = 3;
 const owners = alias(users, "owners");
+const closers = alias(users, "closers");
 
 const createSchema = z.object({
   projectId: z.string().uuid(),
@@ -42,9 +43,17 @@ export async function GET(request: Request) {
         createdAt: tasks.createdAt,
         completedAt: tasks.completedAt,
         imageCount: sql<number>`(select count(*) from ${taskImages} where ${taskImages.taskId} = ${tasks.id})::int`,
+        effortSeconds: sql<number>`coalesce((
+          select sum(${timeSessions.durationSeconds}) from ${timeSessions}
+          where ${timeSessions.taskId} = ${tasks.id} and ${timeSessions.endedAt} is not null
+        ), 0)::int`,
+        checkTotal: sql<number>`(select count(*) from ${taskChecks} where ${taskChecks.taskId} = ${tasks.id})::int`,
+        checkDone: sql<number>`(select count(*) from ${taskChecks} where ${taskChecks.taskId} = ${tasks.id} and ${taskChecks.done})::int`,
+        completedByName: closers.name,
       })
       .from(tasks)
       .innerJoin(owners, sql`${owners.id} = ${taskOwnerId}`)
+      .leftJoin(closers, eq(closers.id, tasks.completedBy))
       .where(eq(tasks.projectId, projectId))
       .orderBy(desc(tasks.createdAt));
     return jsonOk({
@@ -59,6 +68,10 @@ export async function GET(request: Request) {
           status: row.status as TaskStatus,
           assignees: row.assignees ?? [],
           imageCount: Number(row.imageCount) || 0,
+          effortSeconds: Number(row.effortSeconds) || 0,
+          checkTotal: Number(row.checkTotal) || 0,
+          checkDone: Number(row.checkDone) || 0,
+          completedByName: row.completedByName ?? null,
           deadlineAt: row.deadlineAt ? row.deadlineAt.toISOString() : null,
           createdAt: row.createdAt.toISOString(),
           completedAt: row.completedAt ? row.completedAt.toISOString() : null,

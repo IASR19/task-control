@@ -7,8 +7,15 @@ import { handleError, HttpError, jsonOk } from "@/lib/http";
 import { normalizeKey, parsePriority } from "@/lib/priority";
 import { parseEffort } from "@/lib/effort";
 import { getProjectForUser, listTasks, taskOwnerId } from "@/lib/queries";
-import { pruneAssignees, replaceAssignees, requireProjectAccess, resolveAssignees } from "@/lib/sharing";
+import {
+  pruneAssignees,
+  replaceAssignees,
+  requireProjectAccess,
+  requireTaskAccess,
+  resolveAssignees,
+} from "@/lib/sharing";
 import { imageDataSchema, insertTaskImages, MAX_TASK_IMAGES } from "@/lib/task-images";
+import { closeOpenSessions } from "@/lib/timer";
 
 const stampSchema = z.iso.datetime({ offset: true }).nullable().optional();
 
@@ -107,14 +114,31 @@ export async function PATCH(request: Request) {
   try {
     const user = await requireUser(request);
     const body = updateSchema.parse(await request.json());
-    const current = (
-      await db()
-        .select()
-        .from(tasks)
-        .where(and(eq(tasks.id, body.id), eq(tasks.userId, user.id)))
-        .limit(1)
-    )[0];
-    if (!current) throw new HttpError(404, "Tarefa não encontrada.");
+    const { task: current, isBoardOwner } = await requireTaskAccess(user.id, body.id);
+
+    // Membro do projeto compartilhado executa, mas não reorganiza: só conclui ou reabre.
+    if (!isBoardOwner) {
+      const touchesOther = Object.entries(body).some(
+        ([key, value]) => key !== "id" && key !== "status" && value !== undefined,
+      );
+      if (touchesOther || (body.status !== "done" && body.status !== "open")) {
+        throw new HttpError(403, "No projeto compartilhado você só conclui ou reabre a task.");
+      }
+      const done = body.status === "done";
+      if (done) await closeOpenSessions(current.id);
+      const [updated] = await db()
+        .update(tasks)
+        .set({
+          status: body.status,
+          completedAt: done ? current.completedAt ?? new Date() : null,
+          completedBy: done ? current.completedBy ?? user.id : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, current.id))
+        .returning();
+      return jsonOk({ task: updated });
+    }
+
     if (body.projectId) await getProjectForUser(user.id, body.projectId);
 
     const nextPriority =
@@ -128,6 +152,7 @@ export async function PATCH(request: Request) {
         : {};
 
     const status = body.status ?? remanejada.status ?? current.status;
+    if (status === "done" && current.status !== "done") await closeOpenSessions(current.id);
 
     const updated = await db()
       .update(tasks)
@@ -144,6 +169,7 @@ export async function PATCH(request: Request) {
         status,
         boardKey: normalizeKey(body.title ?? current.title),
         completedAt: status === "done" ? current.completedAt ?? new Date() : null,
+        completedBy: status === "done" ? current.completedBy ?? user.id : null,
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, current.id))

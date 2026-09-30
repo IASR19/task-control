@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { tasks, timeSessions } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
-import { getTaskForUser } from "@/lib/queries";
+import { requireTaskAccess } from "@/lib/sharing";
+import { releaseTaskIfIdle } from "@/lib/timer";
 
 const schema = z.object({
   taskId: z.string().uuid(),
@@ -15,7 +16,8 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser(request);
     const body = schema.parse(await request.json());
-    await getTaskForUser(user.id, body.taskId);
+    // Dono do quadro ou membro do projeto; o timer continua sendo um por pessoa.
+    await requireTaskAccess(user.id, body.taskId);
     const database = db();
 
     const openRows = await database
@@ -48,12 +50,7 @@ export async function POST(request: Request) {
           .set({ endedAt, durationSeconds: duration })
           .where(eq(timeSessions.id, open.id));
         closed = { taskId: open.taskId, durationSeconds: duration };
-        if (open.taskId !== body.taskId) {
-          await database
-            .update(tasks)
-            .set({ status: "open", updatedAt: endedAt })
-            .where(and(eq(tasks.id, open.taskId), eq(tasks.status, "in_progress")));
-        }
+        if (open.taskId !== body.taskId) await releaseTaskIfIdle(open.taskId, endedAt);
       }
 
       const started = await database
@@ -88,10 +85,7 @@ export async function POST(request: Request) {
       .set({ endedAt, durationSeconds: duration })
       .where(eq(timeSessions.id, open.id))
       .returning();
-    await database
-      .update(tasks)
-      .set({ status: "open", updatedAt: endedAt })
-      .where(eq(tasks.id, body.taskId));
+    await releaseTaskIfIdle(body.taskId, endedAt);
     return jsonOk({
       session: {
         id: stopped[0].id,

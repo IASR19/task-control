@@ -66,6 +66,7 @@ export const tasks = pgTable(
     deadlineAt: timestamp("deadline_at", { withTimezone: true }),
     createdBy: uuid("created_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    completedBy: uuid("completed_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

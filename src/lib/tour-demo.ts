@@ -75,6 +75,10 @@ export function demoGuestTask(user: Person, ownerName: string): GuestTask {
     assignees: [user, { id: `${DEMO_PREFIX}owner`, name: ownerName }],
     deadlineAt: hoursFromNow(48),
     imageCount: 0,
+    effortSeconds: 40 * 60,
+    checkTotal: 2,
+    checkDone: 1,
+    completedByName: null,
     createdAt: new Date().toISOString(),
     completedAt: null,
   };

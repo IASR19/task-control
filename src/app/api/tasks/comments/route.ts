@@ -1,28 +1,33 @@
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { taskComments } from "@/db/schema";
+import { taskComments, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
-import { getTaskForUser } from "@/lib/queries";
+import { requireTaskAccess } from "@/lib/sharing";
+
+// Comentários são da task (todo mundo do projeto lê); apagar só o autor ou o dono do quadro.
 
 export async function GET(request: Request) {
   try {
     const user = await requireUser(request);
     const taskId = new URL(request.url).searchParams.get("taskId");
     if (!taskId) throw new HttpError(400, "Informe a tarefa.");
-    await getTaskForUser(user.id, taskId);
+    await requireTaskAccess(user.id, taskId);
     const rows = await db()
-      .select()
+      .select({
+        id: taskComments.id,
+        body: taskComments.body,
+        createdAt: taskComments.createdAt,
+        authorId: taskComments.userId,
+        authorName: users.name,
+      })
       .from(taskComments)
-      .where(and(eq(taskComments.taskId, taskId), eq(taskComments.userId, user.id)))
+      .innerJoin(users, eq(users.id, taskComments.userId))
+      .where(eq(taskComments.taskId, taskId))
       .orderBy(desc(taskComments.createdAt));
     return jsonOk({
-      comments: rows.map((row) => ({
-        id: row.id,
-        body: row.body,
-        createdAt: row.createdAt.toISOString(),
-      })),
+      comments: rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
     });
   } catch (error) {
     return handleError(error);
@@ -38,12 +43,23 @@ export async function POST(request: Request) {
         body: z.string().trim().min(1, "Escreve o comentário."),
       })
       .parse(await request.json());
-    await getTaskForUser(user.id, body.taskId);
-    const inserted = await db()
+    await requireTaskAccess(user.id, body.taskId);
+    const [inserted] = await db()
       .insert(taskComments)
       .values({ userId: user.id, taskId: body.taskId, body: body.body })
       .returning();
-    return jsonOk({ comment: { ...inserted[0], createdAt: inserted[0].createdAt.toISOString() } }, 201);
+    return jsonOk(
+      {
+        comment: {
+          id: inserted.id,
+          body: inserted.body,
+          createdAt: inserted.createdAt.toISOString(),
+          authorId: user.id,
+          authorName: user.name,
+        },
+      },
+      201,
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleError(new HttpError(400, error.issues[0]?.message ?? "Dados inválidos."));
@@ -57,11 +73,13 @@ export async function DELETE(request: Request) {
     const user = await requireUser(request);
     const id = new URL(request.url).searchParams.get("id");
     if (!id) throw new HttpError(400, "Informe o comentário.");
-    const deleted = await db()
-      .delete(taskComments)
-      .where(and(eq(taskComments.id, id), eq(taskComments.userId, user.id)))
-      .returning();
-    if (!deleted[0]) throw new HttpError(404, "Comentário não encontrado.");
+    const [comment] = await db().select().from(taskComments).where(eq(taskComments.id, id)).limit(1);
+    if (!comment) throw new HttpError(404, "Comentário não encontrado.");
+    const { isBoardOwner } = await requireTaskAccess(user.id, comment.taskId);
+    if (comment.userId !== user.id && !isBoardOwner) {
+      throw new HttpError(403, "Só quem escreveu (ou o dono do projeto) apaga o comentário.");
+    }
+    await db().delete(taskComments).where(eq(taskComments.id, comment.id));
     return jsonOk({ ok: true });
   } catch (error) {
     return handleError(error);

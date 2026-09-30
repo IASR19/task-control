@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { projects, tasks, timeSessions } from "@/db/schema";
+import { projects, tasks, timeSessions, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
-import { getTaskForUser } from "@/lib/queries";
+import { requireTaskAccess } from "@/lib/sharing";
 
 function serializeSession(row: {
   id: string;
@@ -14,6 +14,8 @@ function serializeSession(row: {
   startedAt: Date;
   endedAt: Date | null;
   durationSeconds: number;
+  personId?: string;
+  personName?: string;
 }) {
   return {
     ...row,
@@ -26,7 +28,8 @@ export async function GET(request: Request) {
   try {
     const user = await requireUser(request);
     const taskId = new URL(request.url).searchParams.get("taskId");
-    if (taskId) await getTaskForUser(user.id, taskId);
+    // Numa task, as iterações de todo mundo que tem acesso; sem task, só as próprias.
+    if (taskId) await requireTaskAccess(user.id, taskId);
     const rows = await db()
       .select({
         id: timeSessions.id,
@@ -36,11 +39,14 @@ export async function GET(request: Request) {
         startedAt: timeSessions.startedAt,
         endedAt: timeSessions.endedAt,
         durationSeconds: timeSessions.durationSeconds,
+        personId: users.id,
+        personName: users.name,
       })
       .from(timeSessions)
       .innerJoin(tasks, eq(tasks.id, timeSessions.taskId))
       .innerJoin(projects, eq(projects.id, tasks.projectId))
-      .where(taskId ? and(eq(timeSessions.userId, user.id), eq(timeSessions.taskId, taskId)) : eq(timeSessions.userId, user.id))
+      .innerJoin(users, eq(users.id, timeSessions.userId))
+      .where(taskId ? eq(timeSessions.taskId, taskId) : eq(timeSessions.userId, user.id))
       .orderBy(desc(timeSessions.startedAt))
       .limit(taskId ? 200 : 80);
 
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser(request);
     const body = createSchema.parse(await request.json());
-    const task = await getTaskForUser(user.id, body.taskId);
+    const { task } = await requireTaskAccess(user.id, body.taskId);
     const startedAt = body.startedAt ? new Date(body.startedAt) : new Date(Date.now() - body.durationSeconds * 1000);
     if (Number.isNaN(startedAt.getTime())) {
       throw new HttpError(400, "Data de início inválida.");
@@ -100,6 +106,8 @@ export async function POST(request: Request) {
           startedAt: inserted.startedAt,
           endedAt: inserted.endedAt,
           durationSeconds: inserted.durationSeconds,
+          personId: user.id,
+          personName: user.name,
         }),
       },
       201,
@@ -117,14 +125,12 @@ export async function DELETE(request: Request) {
     const user = await requireUser(request);
     const id = new URL(request.url).searchParams.get("id");
     if (!id) throw new HttpError(400, "Informe a iteração.");
-    const current = (
-      await db()
-        .select()
-        .from(timeSessions)
-        .where(and(eq(timeSessions.id, id), eq(timeSessions.userId, user.id)))
-        .limit(1)
-    )[0];
+    const [current] = await db().select().from(timeSessions).where(eq(timeSessions.id, id)).limit(1);
     if (!current) throw new HttpError(404, "Iteração não encontrada.");
+    const { isBoardOwner } = await requireTaskAccess(user.id, current.taskId);
+    if (current.userId !== user.id && !isBoardOwner) {
+      throw new HttpError(403, "Só quem rodou (ou o dono do projeto) apaga a iteração.");
+    }
     if (!current.endedAt) throw new HttpError(400, "Encerra o timer antes de apagar.");
     await db().delete(timeSessions).where(eq(timeSessions.id, current.id));
     await db().update(tasks).set({ updatedAt: new Date() }).where(eq(tasks.id, current.taskId));

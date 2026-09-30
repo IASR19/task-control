@@ -187,6 +187,7 @@ export async function reconcileBoard(userId: string, extracted: ExtractedBoard) 
       .set({
         status: "done",
         completedAt: new Date(),
+        completedBy: userId,
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, task.id));

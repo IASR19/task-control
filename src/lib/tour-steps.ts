@@ -70,11 +70,12 @@ export const TOURS: Record<TourId, TourSegment[]> = {
     {
       route: "/compartilhado/",
       steps: [
-        { target: "shared-head", title: "Projeto compartilhado", body: "Este projeto é de quem te convidou. Aqui você manda tasks pra ele e acompanha o andamento." },
+        { target: "shared-head", title: "Projeto compartilhado", body: "Este projeto é de quem te convidou. Aqui você manda tasks, executa e acompanha o andamento." },
+        { target: "shared-tabs", title: "Tasks, Arquivo e Sinal", body: "Tasks são as abertas. Arquivo mostra o que já saiu, tempo por task e por pessoa. Sinal mostra o ritmo do projeto." },
         { target: "shared-form", title: "Mande uma task", body: "Título, descrição (pode colar imagem) e data limite opcional." },
         { target: "shared-assignees", title: "Quem cuida", body: "Escolha os responsáveis entre as pessoas do projeto. Quem cria a task já entra como responsável." },
         { target: "shared-list", title: "Tudo do projeto", body: "Abas Todas, Criei e Comigo. Cada task mostra se está na fila, em execução ou concluída." },
-        { target: "shared-card", title: "Detalhes da task", body: "Clique pra abrir a descrição. Só quem criou a task pode apagar ou mudar os responsáveis." },
+        { target: "shared-card", title: "Execute daqui", body: "O play conta o seu tempo e o quadrado conclui. Abrindo o card: iterações, checklist e comentários. Só quem criou apaga ou muda os responsáveis." },
         { target: "workspace-switch", title: "Trocar de lousa", body: "Use este seletor pra voltar pra Minha lousa ou ir pra outros projetos compartilhados." },
       ],
     },

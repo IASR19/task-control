@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { projectMembers, projectShares, projects, taskAssignees, users } from "@/db/schema";
+import { projectMembers, projectShares, projects, taskAssignees, tasks, users } from "@/db/schema";
 import { HttpError } from "@/lib/http";
 
 export function newShareToken() {
@@ -131,4 +131,13 @@ export async function pruneAssignees(scope: { taskId: string } | { projectId: st
         select 1 from project_members m where m.project_id = p.id and m.user_id = ta.user_id
       )
   `);
+}
+
+// Executar a task (timer, concluir, iterações, checklist, comentários): dono do quadro ou membro com link ativo.
+export async function requireTaskAccess(userId: string, taskId: string) {
+  const [task] = await db().select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  if (!task) throw new HttpError(404, "Tarefa não encontrada.");
+  if (task.userId === userId) return { task, isBoardOwner: true };
+  await requireMembership(userId, task.projectId);
+  return { task, isBoardOwner: false };
 }
