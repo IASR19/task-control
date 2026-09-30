@@ -46,6 +46,7 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
   const [notes, setNotes] = useState("");
   const [images, setImages] = useState<DraftImage[]>([]);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [executorIds, setExecutorIds] = useState<string[]>([]);
   const [deadlineAt, setDeadlineAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -114,7 +115,11 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
   const visible = useMemo(() => {
     if (demoTask) return [demoTask];
     if (scope === "mine") return openTasks.filter((task) => task.ownerId === user?.id);
-    if (scope === "assigned") return openTasks.filter((task) => task.assignees.some((person) => person.id === user?.id));
+    if (scope === "assigned") {
+      return openTasks.filter((task) =>
+        [...task.assignees, ...task.executors].some((person) => person.id === user?.id),
+      );
+    }
     return openTasks;
   }, [demoTask, openTasks, scope, user?.id]);
 
@@ -180,6 +185,7 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
           notes,
           images: images.map((image) => image.data),
           assigneeIds,
+          executorIds,
           deadlineAt: fromLocalInput(deadlineAt),
         }),
       });
@@ -187,6 +193,7 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
       setNotes("");
       setImages([]);
       setAssigneeIds([]);
+      setExecutorIds([]);
       setDeadlineAt("");
       await load();
     } catch (err) {
@@ -255,6 +262,14 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
                 lockedId={user?.id}
               />
             </fieldset>
+            <fieldset>
+              <legend>Executores (opcional)</legend>
+              <AssigneePicker
+                people={people}
+                selected={executorIds}
+                onToggle={(id) => setExecutorIds((current) => toggle(current, id))}
+              />
+            </fieldset>
             <label>
               Data limite (opcional)
               <input type="datetime-local" value={deadlineAt} onChange={(event) => setDeadlineAt(event.target.value)} />
@@ -294,8 +309,8 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
                     timerStartedAt={timerStartedAt}
                     onTimer={(item) => void toggleTimer(item)}
                     onToggleDone={(item) => void toggleDone(item)}
-                    onAssigned={(taskId, assignees) =>
-                      setTasks((current) => current.map((item) => (item.id === taskId ? { ...item, assignees } : item)))
+                    onPatched={(taskId, patch) =>
+                      setTasks((current) => current.map((item) => (item.id === taskId ? { ...item, ...patch } : item)))
                     }
                     onDeleted={(taskId) => setTasks((current) => current.filter((item) => item.id !== taskId))}
                     onChanged={() => void load().catch(() => undefined)}

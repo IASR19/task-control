@@ -118,6 +118,20 @@ export const taskAssignees = pgTable(
   (table) => [primaryKey({ columns: [table.taskId, table.userId] })],
 );
 
+export const taskExecutors = pgTable(
+  "task_executors",
+  {
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.userId] })],
+);
+
 export const userTutorials = pgTable(
   "user_tutorials",
   {

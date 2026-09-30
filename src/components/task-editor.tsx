@@ -42,6 +42,7 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, on
   const [images, setImages] = useState<DraftImage[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(task?.assignees.map((person) => person.id) ?? []);
+  const [executorIds, setExecutorIds] = useState<string[]>(task?.executors.map((person) => person.id) ?? []);
   const [assigneeBusy, setAssigneeBusy] = useState(false);
   const [assigneeError, setAssigneeError] = useState("");
   const [startAt, setStartAt] = useState(toLocalDate(task?.startAt ?? null));
@@ -67,6 +68,7 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, on
         if (!task) {
           const allowed = new Set(data.people.map((person) => person.id));
           setAssigneeIds((current) => current.filter((id) => allowed.has(id)));
+          setExecutorIds((current) => current.filter((id) => allowed.has(id)));
         }
       })
       .catch(() => setPeople([]));
@@ -95,14 +97,40 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, on
     setAssigneeBusy(true);
     setAssigneeError("");
     try {
-      await api("/api/tasks/assignees", {
+      const data = await api<{ assignees: Person[] }>("/api/tasks/assignees", {
         method: "PUT",
-        body: JSON.stringify({ taskId: task.id, userIds: next }),
+        body: JSON.stringify({ taskId: task.id, userId: id, on: !previous.includes(id) }),
       });
+      setAssigneeIds(data.assignees.map((person) => person.id));
       onRefresh?.();
     } catch (err) {
       setAssigneeIds(previous);
       setAssigneeError(err instanceof Error ? err.message : "Não salvou os responsáveis.");
+    } finally {
+      setAssigneeBusy(false);
+    }
+  }
+
+  async function toggleExecutor(id: string) {
+    const next = executorIds.includes(id) ? executorIds.filter((item) => item !== id) : [...executorIds, id];
+    if (!task) {
+      setExecutorIds(next);
+      return;
+    }
+    const previous = executorIds;
+    setExecutorIds(next);
+    setAssigneeBusy(true);
+    setAssigneeError("");
+    try {
+      const data = await api<{ executors: Person[] }>("/api/tasks/executors", {
+        method: "PUT",
+        body: JSON.stringify({ taskId: task.id, userId: id, on: !previous.includes(id) }),
+      });
+      setExecutorIds(data.executors.map((person) => person.id));
+      onRefresh?.();
+    } catch (err) {
+      setExecutorIds(previous);
+      setAssigneeError(err instanceof Error ? err.message : "Não salvou os executores.");
     } finally {
       setAssigneeBusy(false);
     }
@@ -123,7 +151,7 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, on
         id: task?.id,
         projectId,
         title,
-        ...(task ? {} : { notes, images: images.map((image) => image.data), assigneeIds }),
+        ...(task ? {} : { notes, images: images.map((image) => image.data), assigneeIds, executorIds }),
         priority,
         effort,
         startAt: start,
@@ -256,6 +284,13 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, on
               onToggle={(id) => void toggleAssignee(id)}
               disabled={assigneeBusy}
               lockedId={ownerId}
+            />
+            <span className="field-hint">Executores{task ? " (salva na hora)" : ""}</span>
+            <AssigneePicker
+              people={people}
+              selected={executorIds}
+              onToggle={(id) => void toggleExecutor(id)}
+              disabled={assigneeBusy}
             />
             {assigneeError ? <p className="form-error">{assigneeError}</p> : null}
           </fieldset>

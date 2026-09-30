@@ -63,6 +63,7 @@ function People({ task, size }: { task: Task; size?: number }) {
     <TaskPeople
       owner={{ id: task.ownerId, name: task.ownerName }}
       assignees={task.assignees}
+      executors={task.executors}
       showOwner={task.ownerId !== user?.id}
       size={size}
     />

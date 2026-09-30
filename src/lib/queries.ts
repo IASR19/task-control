@@ -39,6 +39,13 @@ export const taskAssigneesJson = sql<{ id: string; name: string }[]>`coalesce((
   where ta.task_id = "tasks"."id"
 ), '[]'::json)`;
 
+export const taskExecutorsJson = sql<{ id: string; name: string }[]>`coalesce((
+  select json_agg(json_build_object('id', eu.id, 'name', eu.name) order by eu.name)
+  from task_executors te
+  join users eu on eu.id = te.user_id
+  where te.task_id = "tasks"."id"
+), '[]'::json)`;
+
 export async function listTasks(userId: string, status?: TaskStatus, taskId?: string) {
   const rows = await db()
     .select({
@@ -59,6 +66,7 @@ export async function listTasks(userId: string, status?: TaskStatus, taskId?: st
       ownerId: creators.id,
       ownerName: creators.name,
       assignees: taskAssigneesJson,
+      executors: taskExecutorsJson,
       completedAt: tasks.completedAt,
       createdAt: tasks.createdAt,
       updatedAt: tasks.updatedAt,
@@ -102,6 +110,7 @@ export async function listTasks(userId: string, status?: TaskStatus, taskId?: st
       endAt: row.endAt ? row.endAt.toISOString() : null,
       deadlineAt: row.deadlineAt ? row.deadlineAt.toISOString() : null,
       assignees: row.assignees ?? [],
+      executors: row.executors ?? [],
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

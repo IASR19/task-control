@@ -2347,11 +2347,6 @@ h1, h2 {
 
 .guest-meta { align-items: center; }
 
-.guest-assign {
-  display: grid;
-  gap: 6px;
-  margin-top: 12px;
-}
 
 .guest-list-head {
   display: flex;
@@ -2370,7 +2365,6 @@ h1, h2 {
   color: var(--ink-soft);
 }
 
-.guest-delete { margin-top: 12px; }
 
 /* Tutorial guiado */
 .tour-layer {
@@ -2530,13 +2524,7 @@ h1, h2 {
 
 .guest-task-row .guest-task-head { flex: 1; min-width: 0; }
 
-.guest-thread {
-  margin-top: 14px;
-  display: grid;
-  gap: 18px;
-}
 
-.guest-thread section { display: grid; gap: 8px; }
 
 .log-row.shared {
   grid-template-columns: 22px 1fr auto 90px;
@@ -2578,4 +2566,114 @@ h1, h2 {
 
 @media (max-width: 860px) {
   .shared-time { grid-template-columns: 1fr; }
+}
+
+/* Task expandida: blocos, pessoas e abas */
+.guest-body {
+  display: grid;
+  gap: 18px;
+}
+
+.guest-block {
+  display: grid;
+  gap: 8px;
+}
+
+.guest-block + .guest-block {
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.guest-block .kicker { margin: 0; }
+
+.guest-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.people-roles {
+  display: grid;
+  gap: 8px;
+}
+
+.role-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.role-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.role-body { min-width: 0; }
+
+.role-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.role-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.role-empty { color: var(--ink-soft); }
+
+.role-edit { font-size: 12px; }
+
+.people-exec {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+}
+
+.exec-mark {
+  color: var(--moss);
+  font-size: 9px;
+}
+
+.thread-tabs {
+  display: grid;
+  gap: 12px;
+}
+
+.thread-tabs section {
+  display: grid;
+  gap: 8px;
+}
+
+.thread-tab-bar button em {
+  font-style: normal;
+  margin-left: 4px;
+  color: var(--ink-soft);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.log-open {
+  justify-self: start;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+@media (max-width: 640px) {
+  .role-row { grid-template-columns: 1fr auto; }
+  .role-label { grid-column: 1 / -1; }
+}
+
+.guest-task-row .task-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
 }

@@ -65,6 +65,7 @@ export type GuestTask = {
   ownerId: string;
   ownerName: string;
   assignees: Person[];
+  executors: Person[];
   deadlineAt: string | null;
   imageCount: number;
   effortSeconds: number;
@@ -110,6 +111,7 @@ export type Task = {
   ownerId: string;
   ownerName: string;
   assignees: Person[];
+  executors: Person[];
   effortSeconds: number;
   checkTotal: number;
   checkDone: number;
@@ -134,6 +136,7 @@ export type TaskSavePayload = {
   notes?: string;
   images?: string[];
   assigneeIds?: string[];
+  executorIds?: string[];
   priority: Priority;
   effort: Effort;
   startAt: string | null;

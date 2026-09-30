@@ -6,8 +6,14 @@ import { taskChecks, taskImages, tasks, timeSessions, users } from "@/db/schema"
 import { requireUser } from "@/lib/auth";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
 import { normalizeKey } from "@/lib/priority";
-import { taskAssigneesJson, taskOwnerId } from "@/lib/queries";
-import { replaceAssignees, requireMembership, resolveAssignees } from "@/lib/sharing";
+import { taskAssigneesJson, taskExecutorsJson, taskOwnerId } from "@/lib/queries";
+import {
+  replaceAssignees,
+  replaceExecutors,
+  requireMembership,
+  resolveAssignees,
+  resolveExecutors,
+} from "@/lib/sharing";
 import { imageDataSchema, insertTaskImages, MAX_TASK_IMAGES } from "@/lib/task-images";
 import type { GuestTask, TaskStatus } from "@/lib/types";
 
@@ -22,6 +28,7 @@ const createSchema = z.object({
   deadlineAt: z.iso.datetime({ offset: true }).nullable().optional(),
   images: z.array(imageDataSchema).max(MAX_TASK_IMAGES, "Imagens demais.").optional().default([]),
   assigneeIds: z.array(z.string().uuid()).max(30).optional().default([]),
+  executorIds: z.array(z.string().uuid()).max(30).optional().default([]),
 });
 
 export async function GET(request: Request) {
@@ -39,6 +46,7 @@ export async function GET(request: Request) {
         ownerId: owners.id,
         ownerName: owners.name,
         assignees: taskAssigneesJson,
+        executors: taskExecutorsJson,
         deadlineAt: tasks.deadlineAt,
         createdAt: tasks.createdAt,
         completedAt: tasks.completedAt,
@@ -67,6 +75,7 @@ export async function GET(request: Request) {
           ...row,
           status: row.status as TaskStatus,
           assignees: row.assignees ?? [],
+          executors: row.executors ?? [],
           imageCount: Number(row.imageCount) || 0,
           effortSeconds: Number(row.effortSeconds) || 0,
           checkTotal: Number(row.checkTotal) || 0,
@@ -89,6 +98,7 @@ export async function POST(request: Request) {
     const body = createSchema.parse(await request.json());
     const workspace = await requireMembership(user.id, body.projectId);
     const assigneeIds = await resolveAssignees(body.projectId, user.id, body.assigneeIds);
+    const executorIds = await resolveExecutors(body.projectId, body.executorIds);
     const [peak] = await db()
       .select({ max: sql<number>`coalesce(max(${tasks.sortOrder}), -1)` })
       .from(tasks)
@@ -112,6 +122,7 @@ export async function POST(request: Request) {
         .returning({ id: tasks.id });
       await insertTaskImages(tx, workspace.ownerId, row.id, body.images);
       await replaceAssignees(tx, row.id, assigneeIds);
+      await replaceExecutors(tx, row.id, executorIds);
       return row;
     });
     return jsonOk({ id: created.id }, 201);

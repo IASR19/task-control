@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AssigneePicker, TaskPeople } from "@/components/avatar";
+import { PeopleRoles, TaskPeople } from "@/components/avatar";
 import { IconCheck, IconPlay, IconStop } from "@/components/icons";
 import { TaskThread } from "@/components/task-thread";
 import { api } from "@/lib/api";
@@ -15,10 +15,6 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
   in_progress: "Em execução",
   done: "Concluída",
 };
-
-function toggle(list: string[], id: string) {
-  return list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
-}
 
 function LiveTime({ seconds, startedAt }: { seconds: number; startedAt: string | null }) {
   const [now, setNow] = useState(Date.now());
@@ -39,7 +35,7 @@ export function GuestTaskCard({
   timerStartedAt,
   onTimer,
   onToggleDone,
-  onAssigned,
+  onPatched,
   onDeleted,
   onChanged,
 }: {
@@ -50,7 +46,7 @@ export function GuestTaskCard({
   timerStartedAt: string | null;
   onTimer: (task: GuestTask) => void;
   onToggleDone: (task: GuestTask) => void;
-  onAssigned: (taskId: string, assignees: Person[]) => void;
+  onPatched: (taskId: string, patch: Partial<GuestTask>) => void;
   onDeleted: (taskId: string) => void;
   onChanged: () => void;
 }) {
@@ -69,18 +65,20 @@ export function GuestTaskCard({
       .catch(() => setImages([]));
   }, [open, images, task.id, task.imageCount]);
 
-  async function assign(id: string) {
+  async function savePeople(role: "assignees" | "executors", id: string) {
     if (demo) return;
     setBusy(true);
     setError("");
     try {
-      const data = await api<{ assignees: Person[] }>("/api/tasks/assignees", {
+      const current = role === "assignees" ? task.assignees : task.executors;
+      const on = !current.some((person) => person.id === id);
+      const data = await api<{ assignees?: Person[]; executors?: Person[] }>(`/api/tasks/${role}`, {
         method: "PUT",
-        body: JSON.stringify({ taskId: task.id, userIds: toggle(task.assignees.map((person) => person.id), id) }),
+        body: JSON.stringify({ taskId: task.id, userId: id, on }),
       });
-      onAssigned(task.id, data.assignees);
+      onPatched(task.id, role === "assignees" ? { assignees: data.assignees ?? [] } : { executors: data.executors ?? [] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não salvou os responsáveis.");
+      setError(err instanceof Error ? err.message : "Não salvou as pessoas.");
     } finally {
       setBusy(false);
     }
@@ -135,7 +133,12 @@ export function GuestTaskCard({
         </div>
       </div>
       <div className="guest-meta">
-        <TaskPeople owner={{ id: task.ownerId, name: task.ownerName }} assignees={task.assignees} size={20} />
+        <TaskPeople
+          owner={{ id: task.ownerId, name: task.ownerName }}
+          assignees={task.assignees}
+          executors={task.executors}
+          size={20}
+        />
         <span>criada {formatStamp(task.createdAt)}</span>
         {task.deadlineAt ? <span>limite {formatStamp(task.deadlineAt)}</span> : null}
         {task.checkTotal ? (
@@ -148,43 +151,53 @@ export function GuestTaskCard({
       </div>
       {open ? (
         <div className="guest-body">
-          {task.notes ? <p className="desc-text">{task.notes}</p> : <p className="empty-col">Sem descrição.</p>}
-          {images?.length ? (
-            <ul className="desc-images">
-              {images.map((image) => (
-                <li key={image.id}>
-                  <button type="button" className="desc-thumb" onClick={() => setPreview(image.data)} aria-label="Ampliar imagem">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={image.data} alt="" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <section className="guest-block">
+            <p className="kicker">Descrição</p>
+            {task.notes ? <p className="desc-text">{task.notes}</p> : <p className="empty-col">Sem descrição.</p>}
+            {images?.length ? (
+              <ul className="desc-images">
+                {images.map((image) => (
+                  <li key={image.id}>
+                    <button type="button" className="desc-thumb" onClick={() => setPreview(image.data)} aria-label="Ampliar imagem">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={image.data} alt="" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+
+          <section className="guest-block">
+            <p className="kicker">Pessoas</p>
+            <PeopleRoles
+              owner={{ id: task.ownerId, name: task.ownerName }}
+              assignees={task.assignees}
+              executors={task.executors}
+              people={people}
+              canEditAssignees={isOwner && !demo}
+              canEditExecutors={!demo}
+              busy={busy}
+              onToggleAssignee={(id) => void savePeople("assignees", id)}
+              onToggleExecutor={(id) => void savePeople("executors", id)}
+            />
+            {error ? <p className="form-error">{error}</p> : null}
+          </section>
+
+          <section className="guest-block">
+            {demo ? (
+              <p className="empty-col">Numa task de verdade, aqui ficam a checklist, o tempo e os comentários.</p>
+            ) : (
+              <TaskThread taskId={task.id} isBoardOwner={false} layout="tabs" onChanged={onChanged} />
+            )}
+          </section>
+
           {isOwner ? (
-            <div className="guest-assign">
-              <span className="field-hint">Responsáveis</span>
-              <AssigneePicker
-                people={people}
-                selected={task.assignees.map((person) => person.id)}
-                onToggle={(id) => void assign(id)}
-                disabled={busy || demo}
-                lockedId={task.ownerId}
-              />
+            <div className="guest-footer">
+              <button type="button" className="text-btn danger" disabled={busy || demo} onClick={() => void remove()}>
+                Apagar task
+              </button>
             </div>
-          ) : null}
-          {error ? <p className="form-error">{error}</p> : null}
-          {demo ? (
-            <p className="empty-col">Numa task de verdade, aqui ficam as iterações, a checklist e os comentários.</p>
-          ) : (
-            <div className="guest-thread">
-              <TaskThread taskId={task.id} isBoardOwner={false} onChanged={onChanged} />
-            </div>
-          )}
-          {isOwner ? (
-            <button type="button" className="text-btn danger guest-delete" disabled={busy || demo} onClick={() => void remove()}>
-              Apagar task
-            </button>
           ) : null}
         </div>
       ) : null}
