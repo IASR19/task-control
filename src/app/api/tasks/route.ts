@@ -7,6 +7,14 @@ import { handleError, HttpError, jsonOk } from "@/lib/http";
 import { normalizeKey, parsePriority } from "@/lib/priority";
 import { parseEffort } from "@/lib/effort";
 import { getProjectForUser, listTasks } from "@/lib/queries";
+import { imageDataSchema, insertTaskImages, MAX_TASK_IMAGES } from "@/lib/task-images";
+
+const stampSchema = z.iso.datetime({ offset: true }).nullable().optional();
+
+function toDate(value: string | null | undefined, fallback: Date | null) {
+  if (value === undefined) return fallback;
+  return value === null ? null : new Date(value);
+}
 
 const createSchema = z.object({
   projectId: z.string().uuid(),
@@ -14,6 +22,10 @@ const createSchema = z.object({
   notes: z.string().optional().default(""),
   priority: z.number().int().min(0).max(3).optional(),
   effort: z.number().int().min(0).max(5).optional(),
+  startAt: stampSchema,
+  endAt: stampSchema,
+  deadlineAt: stampSchema,
+  images: z.array(imageDataSchema).max(MAX_TASK_IMAGES, "Imagens demais.").optional().default([]),
 });
 
 const updateSchema = z.object({
@@ -23,6 +35,9 @@ const updateSchema = z.object({
   notes: z.string().optional(),
   priority: z.number().int().min(0).max(3).optional(),
   effort: z.number().int().min(0).max(5).optional(),
+  startAt: stampSchema,
+  endAt: stampSchema,
+  deadlineAt: stampSchema,
   status: z.enum(["open", "in_progress", "done", "remanejada"]).optional(),
 });
 
@@ -52,22 +67,29 @@ export async function POST(request: Request) {
       .select({ max: sql<number>`coalesce(max(${tasks.sortOrder}), -1)` })
       .from(tasks)
       .where(and(eq(tasks.userId, user.id), eq(tasks.priority, priority)));
-    const inserted = await db()
-      .insert(tasks)
-      .values({
-        userId: user.id,
-        projectId: body.projectId,
-        title: body.title,
-        notes: body.notes ?? "",
-        priority,
-        effort: parseEffort(body.effort ?? 0),
-        status: "open",
-        source: "manual",
-        sortOrder: Number(peak?.max ?? -1) + 1,
-        boardKey: normalizeKey(body.title),
-      })
-      .returning();
-    return jsonOk({ task: inserted[0] }, 201);
+    const created = await db().transaction(async (tx) => {
+      const [row] = await tx
+        .insert(tasks)
+        .values({
+          userId: user.id,
+          projectId: body.projectId,
+          title: body.title,
+          notes: body.notes ?? "",
+          priority,
+          effort: parseEffort(body.effort ?? 0),
+          startAt: toDate(body.startAt, null),
+          endAt: toDate(body.endAt, null),
+          deadlineAt: toDate(body.deadlineAt, null),
+          status: "open",
+          source: "manual",
+          sortOrder: Number(peak?.max ?? -1) + 1,
+          boardKey: normalizeKey(body.title),
+        })
+        .returning();
+      await insertTaskImages(tx, user.id, row.id, body.images);
+      return row;
+    });
+    return jsonOk({ task: created }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleError(new HttpError(400, error.issues[0]?.message ?? "Dados inválidos."));
@@ -110,6 +132,9 @@ export async function PATCH(request: Request) {
         notes: body.notes ?? current.notes,
         priority: nextPriority,
         effort: body.effort === undefined ? current.effort : parseEffort(body.effort),
+        startAt: toDate(body.startAt, current.startAt),
+        endAt: toDate(body.endAt, current.endAt),
+        deadlineAt: toDate(body.deadlineAt, current.deadlineAt),
         previousPriority: remanejada.previousPriority ?? current.previousPriority,
         status,
         boardKey: normalizeKey(body.title ?? current.title),

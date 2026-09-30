@@ -41,6 +41,9 @@ export type Task = {
   createdAt: string;
   updatedAt: string;
   effort: Effort;
+  startAt: string | null;
+  endAt: string | null;
+  deadlineAt: string | null;
   effortSeconds: number;
   checkTotal: number;
   checkDone: number;
@@ -51,6 +54,25 @@ export type TaskCheck = {
   title: string;
   done: boolean;
   sortOrder: number;
+};
+
+export type TaskImage = {
+  id: string;
+  data: string;
+};
+
+export type TaskSavePayload = {
+  id?: string;
+  projectId: string;
+  title: string;
+  notes?: string;
+  images?: string[];
+  priority: Priority;
+  effort: Effort;
+  startAt: string | null;
+  endAt: string | null;
+  deadlineAt: string | null;
+  status?: TaskStatus;
 };
 
 export type TaskComment = {

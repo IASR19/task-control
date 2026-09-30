@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { PriorityStamp } from "@/components/priority-stamp";
 import { ProjectNameField } from "@/components/project-name-field";
 import { IconCheck, IconPlay, IconStop } from "@/components/icons";
-import { formatDuration } from "@/lib/format";
+import { lateReason } from "@/lib/deadline";
+import { formatDuration, formatStamp } from "@/lib/format";
 import { effortStamp } from "@/lib/effort";
 import { columnOrder, listOrder } from "@/lib/order";
 import { PRIORITY_COLUMNS } from "@/lib/priority";
@@ -21,6 +22,35 @@ function TaskClock({ seconds, liveStartedAt }: { seconds: number; liveStartedAt?
   const total = seconds + live;
   if (total <= 0) return null;
   return <span className="task-time">{formatDuration(total)}</span>;
+}
+
+function useMinuteNow(enabled: boolean) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    const tick = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(tick);
+  }, [enabled]);
+  return now;
+}
+
+function LateMark({ task }: { task: Task }) {
+  const now = useMinuteNow(Boolean(task.deadlineAt) && task.status !== "done");
+  const reason = lateReason(task, now);
+  if (!reason) return null;
+  return (
+    <span className="late-mark" title={reason} aria-label={reason}>
+      !
+    </span>
+  );
+}
+
+function DeadlineChip({ task }: { task: Task }) {
+  const now = useMinuteNow(Boolean(task.deadlineAt) && task.status !== "done");
+  if (!task.deadlineAt) return null;
+  return (
+    <span className={lateReason(task, now) ? "dl-chip late" : "dl-chip"}>DL {formatStamp(task.deadlineAt)}</span>
+  );
 }
 
 function statusNote(task: Task) {
@@ -144,11 +174,15 @@ export function TaskRow({
       >
         <PriorityStamp priority={task.priority} />
         <div>
-          <p className="task-title">{task.title}</p>
+          <p className="task-title">
+            <LateMark task={task} />
+            {task.title}
+          </p>
           <p className="task-meta">
             <span className="proj-name">{task.projectName}</span>
             {note ? <span className="task-flag">{note}</span> : null}
             {task.effort ? <span className="effort-chip">{effortStamp(task.effort)}</span> : null}
+            <DeadlineChip task={task} />
             {task.checkTotal > 0 ? (
               <span className="check-chip">
                 {task.checkDone}/{task.checkTotal}
@@ -304,6 +338,7 @@ export function TaskListView({
         <div key={task.id} className={`list-row ${task.status}`}>
           <PriorityStamp priority={task.priority} />
           <button type="button" className="linkish" onClick={() => onOpen(task)}>
+            <LateMark task={task} />
             {task.title}
             {statusNote(task) ? <small>{statusNote(task)}</small> : null}
           </button>
@@ -434,6 +469,7 @@ export function ProjectMural({
                       }
                     }}
                   >
+                    <LateMark task={task} />
                     {task.title}
                   </div>
                   <PriorityStamp priority={task.priority} />

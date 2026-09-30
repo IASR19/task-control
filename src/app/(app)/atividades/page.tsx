@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { formatLogHeading, saoPauloKey, shiftKey, startOfMonthKey, startOfWeekKey } from "@/lib/dates";
 import { formatClockTime, formatDayLabel, formatDuration, formatStamp } from "@/lib/format";
 import { TIMER_EVENT } from "@/lib/timer-sync";
-import type { ActivitiesPayload, Effort, Priority, Project, Task, TaskStatus, TimeSession } from "@/lib/types";
+import type { ActivitiesPayload, Project, Task, TaskSavePayload, TimeSession } from "@/lib/types";
 
 type Preset = "hoje" | "ontem" | "semana" | "mes" | "14d" | "custom";
 type RunFilter = "all" | "running" | "closed";
@@ -120,15 +120,7 @@ export default function AtividadesPage() {
     if (task) setEditing(task);
   }
 
-  async function saveTask(payload: {
-    id?: string;
-    projectId: string;
-    title: string;
-    notes: string;
-    priority: Priority;
-    effort: Effort;
-    status?: TaskStatus;
-  }) {
+  async function saveTask(payload: TaskSavePayload) {
     await api("/api/tasks", { method: "PATCH", body: JSON.stringify(payload) });
     await load();
   }

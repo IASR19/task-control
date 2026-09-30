@@ -12,7 +12,7 @@ import { effortStamp } from "@/lib/effort";
 import { applyTaskFilters, EMPTY_FILTERS, type FilterPreset, type TaskFilters as Filters } from "@/lib/filters";
 import { formatDayLabel, formatDuration } from "@/lib/format";
 import { PRIORITY_COLUMNS } from "@/lib/priority";
-import type { AnalyticsPayload, Effort, Priority, Project, Task, TaskStatus } from "@/lib/types";
+import type { AnalyticsPayload, Project, Task, TaskSavePayload } from "@/lib/types";
 
 const ARQUIVO_PRESETS: FilterPreset[] = [
   { id: "pesado", label: "L/XL", patch: { efforts: [4, 5] } },
@@ -101,15 +101,7 @@ export default function ArquivoPage() {
     }
   }
 
-  async function saveTask(payload: {
-    id?: string;
-    projectId: string;
-    title: string;
-    notes: string;
-    priority: Priority;
-    effort: Effort;
-    status?: TaskStatus;
-  }) {
+  async function saveTask(payload: TaskSavePayload) {
     await api("/api/tasks", {
       method: "PATCH",
       body: JSON.stringify(payload),

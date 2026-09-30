@@ -3,35 +3,44 @@
 import { FormEvent, useEffect, useState } from "react";
 import { IconClose } from "@/components/icons";
 import { PriorityStamp } from "@/components/priority-stamp";
+import { DescriptionFields, TaskDescription, type DraftImage } from "@/components/task-description";
 import { api } from "@/lib/api";
 import { saoPauloKey } from "@/lib/dates";
+import { fromLocalInput, lateReason, toLocalDate, toLocalDateTime } from "@/lib/deadline";
 import { EFFORT_SCALE } from "@/lib/effort";
 import { formatClockTime, formatDuration, formatStamp } from "@/lib/format";
 import { PRIORITY_COLUMNS } from "@/lib/priority";
 import { emitClosed, TIMER_EVENT } from "@/lib/timer-sync";
-import type { Effort, Priority, Project, Task, TaskCheck, TaskComment, TaskRef, TaskStatus, TimeSession } from "@/lib/types";
+import type {
+  Effort,
+  Priority,
+  Project,
+  Task,
+  TaskCheck,
+  TaskComment,
+  TaskRef,
+  TaskSavePayload,
+  TaskStatus,
+  TimeSession,
+} from "@/lib/types";
 
 type Props = {
   open: boolean;
   task: Task | null;
   projects: Project[];
   onClose: () => void;
-  onSave: (payload: {
-    id?: string;
-    projectId: string;
-    title: string;
-    notes: string;
-    priority: Priority;
-    effort: Effort;
-    status?: TaskStatus;
-  }) => Promise<void>;
+  onSave: (payload: TaskSavePayload) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
 };
 
 export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: Props) {
   const [projectId, setProjectId] = useState(task?.projectId ?? projects[0]?.id ?? "");
   const [title, setTitle] = useState(task?.title ?? "");
-  const [notes, setNotes] = useState(task?.notes ?? "");
+  const [notes, setNotes] = useState("");
+  const [images, setImages] = useState<DraftImage[]>([]);
+  const [startAt, setStartAt] = useState(toLocalDate(task?.startAt ?? null));
+  const [endAt, setEndAt] = useState(toLocalDateTime(task?.endAt ?? null));
+  const [deadlineAt, setDeadlineAt] = useState(toLocalDateTime(task?.deadlineAt ?? null));
   const [priority, setPriority] = useState<Priority>(task?.priority ?? 3);
   const [effort, setEffort] = useState<Effort>(task?.effort ?? 0);
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "open");
@@ -105,6 +114,12 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
 
   async function saveCore(event: FormEvent) {
     event.preventDefault();
+    const start = fromLocalInput(startAt);
+    const end = fromLocalInput(endAt);
+    if (start && end && Date.parse(end) < Date.parse(start)) {
+      setError("O End não pode ser antes do Start.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -112,9 +127,12 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
         id: task?.id,
         projectId,
         title,
-        notes,
+        ...(task ? {} : { notes, images: images.map((image) => image.data) }),
         priority,
         effort,
+        startAt: start,
+        endAt: end,
+        deadlineAt: fromLocalInput(deadlineAt),
         status: task ? status : "open",
       });
       if (!task) onClose();
@@ -192,10 +210,41 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
             Título
             <input value={title} onChange={(event) => setTitle(event.target.value)} required />
           </label>
-          <label>
-            Brief
-            <textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Contexto, critério de pronto, bloqueio…" />
-          </label>
+          {task ? (
+            <TaskDescription taskId={task.id} initialNotes={task.notes} />
+          ) : (
+            <div className="desc-block">
+              <div className="desc-head">
+                <span>Descrição</span>
+              </div>
+              <DescriptionFields text={notes} images={images} onText={setNotes} onImages={setImages} />
+            </div>
+          )}
+          <fieldset>
+            <legend>Prazo</legend>
+            <div className="date-picks">
+              <label>
+                Start
+                <input type="date" value={startAt} onChange={(event) => setStartAt(event.target.value)} />
+              </label>
+              <label>
+                End
+                <input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
+              </label>
+              <label>
+                DL
+                <input type="datetime-local" value={deadlineAt} onChange={(event) => setDeadlineAt(event.target.value)} />
+              </label>
+            </div>
+            {(() => {
+              const reason = lateReason({
+                status,
+                endAt: fromLocalInput(endAt),
+                deadlineAt: fromLocalInput(deadlineAt),
+              });
+              return reason ? <p className="late-note"><span className="late-mark">!</span> {reason}</p> : null;
+            })()}
+          </fieldset>
           <fieldset>
             <legend>Janela</legend>
             <div className="priority-picks">

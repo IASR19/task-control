@@ -88,6 +88,14 @@ export function IconEdit(props: IconProps) {
   );
 }
 
+export function IconBrush(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M20 4l-9 9M13.5 10.5l-3-3M10 14c-1.5-1.5-4-1-4.5 1.5C5 18 4 19 3 20c3 .5 6 0 7.5-1.5 1.2-1.2 1-3 -.5-4.5z" />
+    </svg>
+  );
+}
+
 export function IconCheck(props: IconProps) {
   return (
     <svg {...base(props)}>

@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { applyTaskFilters, EMPTY_FILTERS, toggleValue, type TaskFilters as Filters } from "@/lib/filters";
 import { columnOrder, insertBefore, sameOrder } from "@/lib/order";
 import { emitTimer, readTimerDetail, sessionElapsed, TIMER_EVENT } from "@/lib/timer-sync";
-import type { Effort, Priority, Project, Task, TaskStatus } from "@/lib/types";
+import type { Priority, Project, Task, TaskSavePayload, TaskStatus } from "@/lib/types";
 
 type View = "prioridade" | "lista" | "mural";
 const FILTER_KEY = "lousa.quadro.filters";
@@ -155,15 +155,7 @@ export default function QuadroPage() {
     return projects.filter((project) => filters.projectIds.includes(project.id));
   }, [projects, filters.projectIds]);
 
-  async function saveTask(payload: {
-    id?: string;
-    projectId: string;
-    title: string;
-    notes: string;
-    priority: Priority;
-    effort: Effort;
-    status?: TaskStatus;
-  }) {
+  async function saveTask(payload: TaskSavePayload) {
     if (payload.id) {
       await api("/api/tasks", {
         method: "PATCH",

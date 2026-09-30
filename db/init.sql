@@ -96,3 +96,17 @@ CREATE INDEX IF NOT EXISTS sessions_user_open_idx ON time_sessions (user_id) WHE
 CREATE INDEX IF NOT EXISTS refresh_user_idx ON refresh_tokens (user_id);
 CREATE INDEX IF NOT EXISTS checks_task_idx ON task_checks (task_id);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS effort smallint NOT NULL DEFAULT 0;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_at timestamptz;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS end_at timestamptz;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deadline_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS task_images (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  task_id uuid NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  data text NOT NULL,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS task_images_task_idx ON task_images (task_id);
