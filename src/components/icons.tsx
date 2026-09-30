@@ -96,6 +96,14 @@ export function IconBrush(props: IconProps) {
   );
 }
 
+export function IconShare(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M10 14l4-4M8.5 11.5L6 14a3 3 0 004 4l2.5-2.5M15.5 12.5L18 10a3 3 0 00-4-4l-2.5 2.5" />
+    </svg>
+  );
+}
+
 export function IconCheck(props: IconProps) {
   return (
     <svg {...base(props)}>

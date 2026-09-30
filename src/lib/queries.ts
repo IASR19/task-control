@@ -1,6 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { projects, taskChecks, tasks, timeSessions } from "@/db/schema";
+import { projectShares, projects, taskChecks, tasks, timeSessions, users } from "@/db/schema";
 import { HttpError } from "@/lib/http";
 import type { Effort, Priority, Task, TaskStatus } from "@/lib/types";
 
@@ -11,6 +12,10 @@ export async function listProjects(userId: string) {
       name: projects.name,
       sortOrder: projects.sortOrder,
       openCount: sql<number>`coalesce(count(${tasks.id}) filter (where ${tasks.status} <> 'done'), 0)::int`,
+      shared: sql<boolean>`exists (
+        select 1 from ${projectShares}
+        where ${projectShares.projectId} = ${projects.id} and ${isNull(projectShares.revokedAt)}
+      )`,
     })
     .from(projects)
     .leftJoin(tasks, and(eq(tasks.projectId, projects.id), eq(tasks.userId, userId)))
@@ -19,6 +24,20 @@ export async function listProjects(userId: string) {
     .orderBy(projects.sortOrder, projects.name);
   return rows;
 }
+
+const creators = alias(users, "creators");
+
+// Tasks antigas (ou vindas da foto) não têm created_by: o dono do quadro é o owner.
+// Colunas escritas com tabela explícita: numa query de tabela única o Drizzle omite o prefixo,
+// e dentro do subselect "id" ficaria ambíguo (ou pior, resolveria para users.id).
+export const taskOwnerId = sql`coalesce("tasks"."created_by", "tasks"."user_id")`;
+
+export const taskAssigneesJson = sql<{ id: string; name: string }[]>`coalesce((
+  select json_agg(json_build_object('id', au.id, 'name', au.name) order by au.name)
+  from task_assignees ta
+  join users au on au.id = ta.user_id
+  where ta.task_id = "tasks"."id"
+), '[]'::json)`;
 
 export async function listTasks(userId: string, status?: TaskStatus, taskId?: string) {
   const rows = await db()
@@ -37,6 +56,9 @@ export async function listTasks(userId: string, status?: TaskStatus, taskId?: st
       startAt: tasks.startAt,
       endAt: tasks.endAt,
       deadlineAt: tasks.deadlineAt,
+      ownerId: creators.id,
+      ownerName: creators.name,
+      assignees: taskAssigneesJson,
       completedAt: tasks.completedAt,
       createdAt: tasks.createdAt,
       updatedAt: tasks.updatedAt,
@@ -55,6 +77,7 @@ export async function listTasks(userId: string, status?: TaskStatus, taskId?: st
     })
     .from(tasks)
     .innerJoin(projects, eq(projects.id, tasks.projectId))
+    .innerJoin(creators, sql`${creators.id} = ${taskOwnerId}`)
     .where(
       and(
         eq(tasks.userId, userId),
@@ -78,6 +101,7 @@ export async function listTasks(userId: string, status?: TaskStatus, taskId?: st
       startAt: row.startAt ? row.startAt.toISOString() : null,
       endAt: row.endAt ? row.endAt.toISOString() : null,
       deadlineAt: row.deadlineAt ? row.deadlineAt.toISOString() : null,
+      assignees: row.assignees ?? [],
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

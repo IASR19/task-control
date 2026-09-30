@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
 import { parsePriority } from "@/lib/priority";
 import { getProjectForUser } from "@/lib/queries";
+import { pruneAssignees } from "@/lib/sharing";
 
 const schema = z.object({
   movedId: z.string().uuid(),
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
       ),
     );
 
+    if (body.projectId) await pruneAssignees({ taskId: body.movedId });
     return jsonOk({ ok: true });
   } catch (error) {
     if (error instanceof z.ZodError) {

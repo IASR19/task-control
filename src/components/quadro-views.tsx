@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TaskPeople } from "@/components/avatar";
 import { PriorityStamp } from "@/components/priority-stamp";
+import { useAuth } from "@/context/auth-context";
 import { ProjectNameField } from "@/components/project-name-field";
 import { IconCheck, IconPlay, IconStop } from "@/components/icons";
 import { lateReason } from "@/lib/deadline";
@@ -50,6 +52,19 @@ function DeadlineChip({ task }: { task: Task }) {
   if (!task.deadlineAt) return null;
   return (
     <span className={lateReason(task, now) ? "dl-chip late" : "dl-chip"}>DL {formatStamp(task.deadlineAt)}</span>
+  );
+}
+
+// No próprio quadro, o avatar do owner só aparece quando a task veio de outra pessoa.
+function People({ task, size }: { task: Task; size?: number }) {
+  const { user } = useAuth();
+  return (
+    <TaskPeople
+      owner={{ id: task.ownerId, name: task.ownerName }}
+      assignees={task.assignees}
+      showOwner={task.ownerId !== user?.id}
+      size={size}
+    />
   );
 }
 
@@ -183,6 +198,7 @@ export function TaskRow({
             {note ? <span className="task-flag">{note}</span> : null}
             {task.effort ? <span className="effort-chip">{effortStamp(task.effort)}</span> : null}
             <DeadlineChip task={task} />
+            <People task={task} size={18} />
             {task.checkTotal > 0 ? (
               <span className="check-chip">
                 {task.checkDone}/{task.checkTotal}
@@ -341,6 +357,7 @@ export function TaskListView({
             <LateMark task={task} />
             {task.title}
             {statusNote(task) ? <small>{statusNote(task)}</small> : null}
+            <People task={task} size={18} />
           </button>
           <span className="proj-name">{task.projectName}</span>
           <span className="mono">
@@ -471,6 +488,7 @@ export function ProjectMural({
                   >
                     <LateMark task={task} />
                     {task.title}
+                    <People task={task} size={16} />
                   </div>
                   <PriorityStamp priority={task.priority} />
                   {task.effort ? <span className="effort-chip">{effortStamp(task.effort)}</span> : null}

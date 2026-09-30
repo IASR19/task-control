@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { projects, tasks } from "@/db/schema";
+import { projects, taskAssignees, tasks } from "@/db/schema";
 import { normalizeKey, parsePriority } from "@/lib/priority";
 import type { ExtractedBoard, Priority, ReconcileSummary } from "@/lib/types";
 
@@ -127,8 +127,9 @@ export async function reconcileBoard(userId: string, extracted: ExtractedBoard) 
       const match = findMatch(openTasks, project.name, title);
 
       if (!match) {
-        await database.insert(tasks).values({
+        const [created] = await database.insert(tasks).values({
           userId,
+          createdBy: userId,
           projectId: project.id,
           title,
           priority,
@@ -136,7 +137,8 @@ export async function reconcileBoard(userId: string, extracted: ExtractedBoard) 
           source: "board",
           boardKey: normalizeKey(title),
           sortOrder: incomingTask.order ?? 0,
-        });
+        }).returning({ id: tasks.id });
+        await database.insert(taskAssignees).values({ taskId: created.id, userId });
         summary.created.push({ title, project: project.name, priority });
         continue;
       }

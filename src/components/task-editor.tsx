@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { AssigneePicker, Avatar } from "@/components/avatar";
+import { useAuth } from "@/context/auth-context";
 import { IconClose } from "@/components/icons";
 import { PriorityStamp } from "@/components/priority-stamp";
 import { DescriptionFields, TaskDescription, type DraftImage } from "@/components/task-description";
@@ -13,6 +15,7 @@ import { PRIORITY_COLUMNS } from "@/lib/priority";
 import { emitClosed, TIMER_EVENT } from "@/lib/timer-sync";
 import type {
   Effort,
+  Person,
   Priority,
   Project,
   Task,
@@ -31,13 +34,20 @@ type Props = {
   onClose: () => void;
   onSave: (payload: TaskSavePayload) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
+  onRefresh?: () => void;
 };
 
-export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: Props) {
+export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, onRefresh }: Props) {
+  const { user } = useAuth();
+  const ownerId = task?.ownerId ?? user?.id;
   const [projectId, setProjectId] = useState(task?.projectId ?? projects[0]?.id ?? "");
   const [title, setTitle] = useState(task?.title ?? "");
   const [notes, setNotes] = useState("");
   const [images, setImages] = useState<DraftImage[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(task?.assignees.map((person) => person.id) ?? []);
+  const [assigneeBusy, setAssigneeBusy] = useState(false);
+  const [assigneeError, setAssigneeError] = useState("");
   const [startAt, setStartAt] = useState(toLocalDate(task?.startAt ?? null));
   const [endAt, setEndAt] = useState(toLocalDateTime(task?.endAt ?? null));
   const [deadlineAt, setDeadlineAt] = useState(toLocalDateTime(task?.deadlineAt ?? null));
@@ -105,12 +115,56 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
   }, [open, task]);
 
   useEffect(() => {
+    if (!open || !projectId) return;
+    let alive = true;
+    api<{ people: Person[] }>(`/api/projects/people?projectId=${projectId}`)
+      .then((data) => {
+        if (!alive) return;
+        setPeople(data.people);
+        // Numa task nova, trocar de projeto descarta quem não está no projeto escolhido.
+        if (!task) {
+          const allowed = new Set(data.people.map((person) => person.id));
+          setAssigneeIds((current) => current.filter((id) => allowed.has(id)));
+        }
+      })
+      .catch(() => setPeople([]));
+    return () => {
+      alive = false;
+    };
+  }, [open, projectId, task]);
+
+  useEffect(() => {
     if (!sessions.some((item) => !item.endedAt)) return;
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(tick);
   }, [sessions]);
 
   if (!open) return null;
+
+  async function toggleAssignee(id: string) {
+    if (id === ownerId) return;
+    const next = assigneeIds.includes(id) ? assigneeIds.filter((item) => item !== id) : [...assigneeIds, id];
+    if (!task) {
+      setAssigneeIds(next);
+      return;
+    }
+    const previous = assigneeIds;
+    setAssigneeIds(next);
+    setAssigneeBusy(true);
+    setAssigneeError("");
+    try {
+      await api("/api/tasks/assignees", {
+        method: "PUT",
+        body: JSON.stringify({ taskId: task.id, userIds: next }),
+      });
+      onRefresh?.();
+    } catch (err) {
+      setAssigneeIds(previous);
+      setAssigneeError(err instanceof Error ? err.message : "Não salvou os responsáveis.");
+    } finally {
+      setAssigneeBusy(false);
+    }
+  }
 
   async function saveCore(event: FormEvent) {
     event.preventDefault();
@@ -127,7 +181,7 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
         id: task?.id,
         projectId,
         title,
-        ...(task ? {} : { notes, images: images.map((image) => image.data) }),
+        ...(task ? {} : { notes, images: images.map((image) => image.data), assigneeIds }),
         priority,
         effort,
         startAt: start,
@@ -285,6 +339,26 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
               ))}
             </div>
           </fieldset>
+          <fieldset>
+            <legend>Pessoas</legend>
+            {task ? (
+              <p className="task-owner">
+                <Avatar person={{ id: task.ownerId, name: task.ownerName }} size={22} />
+                <span>
+                  Owner: <strong>{task.ownerName}</strong>
+                </span>
+              </p>
+            ) : null}
+            <span className="field-hint">Responsáveis{task ? " (salva na hora)" : ""}</span>
+            <AssigneePicker
+              people={people}
+              selected={assigneeIds}
+              onToggle={(id) => void toggleAssignee(id)}
+              disabled={assigneeBusy}
+              lockedId={ownerId}
+            />
+            {assigneeError ? <p className="form-error">{assigneeError}</p> : null}
+          </fieldset>
           {task ? (
             <label>
               Status
@@ -324,7 +398,10 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete }: 
               <dl className="task-facts">
                 <div>
                   <dt>Criada</dt>
-                  <dd>{formatStamp(task.createdAt)}</dd>
+                  <dd>
+                    {formatStamp(task.createdAt)}
+                    {` · por ${task.ownerName}`}
+                  </dd>
                 </div>
                 <div>
                   <dt>Atualizada</dt>

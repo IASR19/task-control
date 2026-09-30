@@ -5,6 +5,11 @@ export type TaskStatus = "open" | "in_progress" | "done" | "remanejada";
 
 export type TaskSource = "board" | "manual";
 
+export type Person = {
+  id: string;
+  name: string;
+};
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -24,6 +29,46 @@ export type Project = {
   name: string;
   sortOrder: number;
   openCount: number;
+  shared: boolean;
+};
+
+export type ProjectShare = {
+  token: string;
+  createdAt: string;
+};
+
+export type ProjectMember = {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  taskCount: number;
+};
+
+export type SharedWorkspace = {
+  projectId: string;
+  projectName: string;
+  ownerName: string;
+};
+
+export type SharePreview = {
+  projectId: string;
+  projectName: string;
+  ownerName: string;
+};
+
+export type GuestTask = {
+  id: string;
+  title: string;
+  notes: string;
+  status: TaskStatus;
+  ownerId: string;
+  ownerName: string;
+  assignees: Person[];
+  deadlineAt: string | null;
+  imageCount: number;
+  createdAt: string;
+  completedAt: string | null;
 };
 
 export type Task = {
@@ -44,6 +89,9 @@ export type Task = {
   startAt: string | null;
   endAt: string | null;
   deadlineAt: string | null;
+  ownerId: string;
+  ownerName: string;
+  assignees: Person[];
   effortSeconds: number;
   checkTotal: number;
   checkDone: number;
@@ -67,6 +115,7 @@ export type TaskSavePayload = {
   title: string;
   notes?: string;
   images?: string[];
+  assigneeIds?: string[];
   priority: Priority;
   effort: Effort;
   startAt: string | null;

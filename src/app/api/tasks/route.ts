@@ -7,6 +7,7 @@ import { handleError, HttpError, jsonOk } from "@/lib/http";
 import { normalizeKey, parsePriority } from "@/lib/priority";
 import { parseEffort } from "@/lib/effort";
 import { getProjectForUser, listTasks } from "@/lib/queries";
+import { pruneAssignees, replaceAssignees, resolveAssignees } from "@/lib/sharing";
 import { imageDataSchema, insertTaskImages, MAX_TASK_IMAGES } from "@/lib/task-images";
 
 const stampSchema = z.iso.datetime({ offset: true }).nullable().optional();
@@ -26,6 +27,7 @@ const createSchema = z.object({
   endAt: stampSchema,
   deadlineAt: stampSchema,
   images: z.array(imageDataSchema).max(MAX_TASK_IMAGES, "Imagens demais.").optional().default([]),
+  assigneeIds: z.array(z.string().uuid()).max(30).optional().default([]),
 });
 
 const updateSchema = z.object({
@@ -62,6 +64,7 @@ export async function POST(request: Request) {
     const user = await requireUser(request);
     const body = createSchema.parse(await request.json());
     await getProjectForUser(user.id, body.projectId);
+    const assigneeIds = await resolveAssignees(body.projectId, user.id, body.assigneeIds);
     const priority = parsePriority(body.priority ?? 3);
     const [peak] = await db()
       .select({ max: sql<number>`coalesce(max(${tasks.sortOrder}), -1)` })
@@ -73,6 +76,7 @@ export async function POST(request: Request) {
         .values({
           userId: user.id,
           projectId: body.projectId,
+          createdBy: user.id,
           title: body.title,
           notes: body.notes ?? "",
           priority,
@@ -87,6 +91,7 @@ export async function POST(request: Request) {
         })
         .returning();
       await insertTaskImages(tx, user.id, row.id, body.images);
+      await replaceAssignees(tx, row.id, assigneeIds);
       return row;
     });
     return jsonOk({ task: created }, 201);
@@ -143,6 +148,7 @@ export async function PATCH(request: Request) {
       })
       .where(eq(tasks.id, current.id))
       .returning();
+    if (updated[0].projectId !== current.projectId) await pruneAssignees({ taskId: current.id });
 
     return jsonOk({ task: updated[0] });
   } catch (error) {

@@ -7,6 +7,7 @@ import { AuthLive } from "@/components/auth-live";
 import { BrandMark } from "@/components/brand-mark";
 import { Spinner } from "@/components/spinner";
 import { useAuth } from "@/context/auth-context";
+import { readNextPath, withNext } from "@/lib/next-path";
 
 export function AuthScreen({ mode }: { mode: "login" | "registro" }) {
   const { login, register, user, ready } = useAuth();
@@ -16,9 +17,15 @@ export function AuthScreen({ mode }: { mode: "login" | "registro" }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [next, setNext] = useState<string | null>(null);
 
   useEffect(() => {
-    if (ready && user) router.replace("/quadro");
+    const target = readNextPath("");
+    setNext(target || null);
+  }, []);
+
+  useEffect(() => {
+    if (ready && user) router.replace(readNextPath());
   }, [ready, user, router]);
 
   async function onSubmit(event: FormEvent) {
@@ -28,7 +35,7 @@ export function AuthScreen({ mode }: { mode: "login" | "registro" }) {
     try {
       if (mode === "registro") await register(name, email, password);
       else await login(email, password);
-      router.replace("/quadro");
+      router.replace(readNextPath());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não entrou.");
     } finally {
@@ -55,7 +62,9 @@ export function AuthScreen({ mode }: { mode: "login" | "registro" }) {
             "Abre a sua lousa."
           )}
         </h1>
-        {mode === "registro" ? (
+        {next?.startsWith("/c/") ? (
+          <p className="lead">Entre ou crie uma conta para abrir o projeto que compartilharam com você.</p>
+        ) : mode === "registro" ? (
           <p className="lead">Cadastro por e-mail e senha. Cada conta vê só o próprio quadro.</p>
         ) : (
           <p className="lead">Da lousa física para um quadro vivo.</p>
@@ -96,11 +105,11 @@ export function AuthScreen({ mode }: { mode: "login" | "registro" }) {
         <p className="auth-switch">
           {mode === "login" ? (
             <>
-              Ainda não tem lousa? <Link href="/registro">Registrar</Link>
+              Ainda não tem lousa? <Link href={withNext("/registro", next)}>Registrar</Link>
             </>
           ) : (
             <>
-              Já tem conta? <Link href="/login">Entrar</Link>
+              Já tem conta? <Link href={withNext("/login", next)}>Entrar</Link>
             </>
           )}
         </p>

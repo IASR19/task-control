@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconGrid, IconList, IconMark } from "@/components/icons";
 import { ProjectNameField } from "@/components/project-name-field";
+import { ShareDialog } from "@/components/share-dialog";
 import { PriorityBoard, ProjectMural, TaskListView } from "@/components/quadro-views";
 import { TaskEditor } from "@/components/task-editor";
 import { Spinner } from "@/components/spinner";
@@ -33,6 +34,7 @@ export default function QuadroPage() {
   const [timerStartedAt, setTimerStartedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [projectName, setProjectName] = useState("");
+  const [sharing, setSharing] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
 
   function setRunning(next: string | null) {
@@ -435,6 +437,7 @@ export default function QuadroPage() {
             selected={filters.projectIds.includes(project.id)}
             onToggle={() => setFilters((current) => ({ ...current, projectIds: toggleValue(current.projectIds, project.id) }))}
             onRename={renameProject}
+            onShare={() => setSharing(project)}
           />
         ))}
         <form onSubmit={createProject} className="project-create">
@@ -496,6 +499,10 @@ export default function QuadroPage() {
         />
       )}
 
+      {sharing ? (
+        <ShareDialog project={sharing} onClose={() => setSharing(null)} onChanged={() => void load()} />
+      ) : null}
+
       <TaskEditor
         key={editing?.id ?? (editorOpen ? "new" : "closed")}
         open={editorOpen}
@@ -503,6 +510,7 @@ export default function QuadroPage() {
         projects={projects}
         onClose={() => setEditorOpen(false)}
         onSave={saveTask}
+        onRefresh={() => void load()}
         onDelete={async (id) => {
           await api(`/api/tasks?id=${id}`, { method: "DELETE" });
           await load();

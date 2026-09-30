@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Avatar } from "@/components/avatar";
 import { BrandMark } from "@/components/brand-mark";
 import { IconArchive, IconCamera, IconClock, IconMark, IconMenu, IconStop } from "@/components/icons";
 import { ThemeSwitch } from "@/components/theme-switch";
+import { WorkspaceSwitch } from "@/components/workspace-switch";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { formatClock } from "@/lib/format";
@@ -85,8 +87,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="rail-meta">
+          <WorkspaceSwitch />
           <ThemeSwitch />
-          <p className="user-name">{user?.name}</p>
+          <p className="user-name">
+            {user ? <Avatar person={{ id: user.id, name: user.name }} size={26} /> : null}
+            <span>{user?.name}</span>
+          </p>
           <button type="button" className="text-btn" onClick={() => void logout().then(() => router.push("/login"))}>
             Sair
           </button>
@@ -102,7 +108,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </button>
         {menu ? (
           <div className="rail-drawer">
-            <p className="user-name">{user?.name}</p>
+            <p className="user-name">
+            {user ? <Avatar person={{ id: user.id, name: user.name }} size={26} /> : null}
+            <span>{user?.name}</span>
+          </p>
+            <WorkspaceSwitch />
             <ThemeSwitch />
             <button type="button" className="text-btn" onClick={() => void logout().then(() => router.push("/login"))}>
               Sair

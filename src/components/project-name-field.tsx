@@ -1,7 +1,7 @@
 "use client";
 
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
-import { IconEdit } from "@/components/icons";
+import { IconEdit, IconShare } from "@/components/icons";
 import type { Project } from "@/lib/types";
 
 type Props = {
@@ -10,6 +10,7 @@ type Props = {
   selected?: boolean;
   onToggle?: () => void;
   onRename: (id: string, name: string) => Promise<void>;
+  onShare?: () => void;
 };
 
 export function ProjectNameField({
@@ -18,6 +19,7 @@ export function ProjectNameField({
   selected = false,
   onToggle,
   onRename,
+  onShare,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(project.name);
@@ -103,6 +105,17 @@ export function ProjectNameField({
       >
         <IconEdit width={11} height={11} />
       </button>
+      {onShare ? (
+        <button
+          type="button"
+          className={project.shared ? "chip-edit chip-share on" : "chip-edit chip-share"}
+          onClick={onShare}
+          aria-label={`Compartilhar ${project.name}`}
+          title={project.shared ? "Compartilhado por link" : "Compartilhar por link"}
+        >
+          <IconShare width={11} height={11} />
+        </button>
+      ) : null}
     </span>
   );
 }

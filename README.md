@@ -29,7 +29,7 @@ Tarefas criadas à mão não são apagadas só porque a foto não as trouxe.
 
 1. Crie um PostgreSQL no [Railway](https://railway.app).
 2. Copie a `DATABASE_URL` (Connections).
-3. Rode o schema: cole `db/init.sql` no Query do Railway **ou**, com a URL no `.env.local`:
+3. Rode o schema: cole `db/init.sql` e, em ordem, os arquivos de `db/migrations/` no Query do Railway **ou**, com a URL no `.env.local` (aplica a base e só as migrations que ainda não rodaram, registradas em `schema_migrations`):
 
 ```bash
 cp .env.example .env.local
