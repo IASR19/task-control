@@ -122,7 +122,7 @@ export default function ArquivoPage() {
           <p className="kicker">/log</p>
           <h1>O que saiu.</h1>
         </div>
-        <div className="view-tabs">
+        <div className="view-tabs" data-tour="archive-tabs">
           <button type="button" className={tab === "log" ? "on" : ""} onClick={() => setTab("log")}>
             Fechadas
           </button>

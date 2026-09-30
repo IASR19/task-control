@@ -6,8 +6,8 @@ import { requireUser } from "@/lib/auth";
 import { handleError, HttpError, jsonOk } from "@/lib/http";
 import { normalizeKey, parsePriority } from "@/lib/priority";
 import { parseEffort } from "@/lib/effort";
-import { getProjectForUser, listTasks } from "@/lib/queries";
-import { pruneAssignees, replaceAssignees, resolveAssignees } from "@/lib/sharing";
+import { getProjectForUser, listTasks, taskOwnerId } from "@/lib/queries";
+import { pruneAssignees, replaceAssignees, requireProjectAccess, resolveAssignees } from "@/lib/sharing";
 import { imageDataSchema, insertTaskImages, MAX_TASK_IMAGES } from "@/lib/task-images";
 
 const stampSchema = z.iso.datetime({ offset: true }).nullable().optional();
@@ -165,11 +165,16 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) throw new HttpError(400, "Informe a tarefa.");
-    const deleted = await db()
-      .delete(tasks)
-      .where(and(eq(tasks.id, id), eq(tasks.userId, user.id)))
-      .returning();
-    if (!deleted[0]) throw new HttpError(404, "Tarefa não encontrada.");
+    const [task] = await db()
+      .select({ projectId: tasks.projectId, ownerId: sql<string>`${taskOwnerId}` })
+      .from(tasks)
+      .where(eq(tasks.id, id))
+      .limit(1);
+    if (!task) throw new HttpError(404, "Tarefa não encontrada.");
+    // Só quem criou apaga, inclusive o convidado (que precisa manter acesso ao projeto).
+    await requireProjectAccess(user.id, task.projectId);
+    if (task.ownerId !== user.id) throw new HttpError(403, "Só quem criou a task pode apagar.");
+    await db().delete(tasks).where(eq(tasks.id, id));
     return jsonOk({ ok: true });
   } catch (error) {
     return handleError(error);

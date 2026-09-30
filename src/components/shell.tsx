@@ -6,6 +6,8 @@ import { Avatar } from "@/components/avatar";
 import { BrandMark } from "@/components/brand-mark";
 import { IconArchive, IconCamera, IconClock, IconMark, IconMenu, IconStop } from "@/components/icons";
 import { ThemeSwitch } from "@/components/theme-switch";
+import { TourButton } from "@/components/tour/tour-button";
+import { TourProvider } from "@/context/tour-context";
 import { WorkspaceSwitch } from "@/components/workspace-switch";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
@@ -71,99 +73,107 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="frame">
-      <header className="rail">
-        <BrandMark />
-        <nav className="main-nav" aria-label="Principal">
-          {LINKS.map((link) => (
-            <button
-              key={link.href}
-              type="button"
-              className={pathname.startsWith(link.href) ? "nav-link active" : "nav-link"}
-              onClick={() => go(link.href)}
-            >
-              {link.label}
-            </button>
-          ))}
-        </nav>
-        <div className="rail-meta">
-          <WorkspaceSwitch />
-          <ThemeSwitch />
-          <p className="user-name">
-            {user ? <Avatar person={{ id: user.id, name: user.name }} size={26} /> : null}
-            <span>{user?.name}</span>
-          </p>
-          <button type="button" className="text-btn" onClick={() => void logout().then(() => router.push("/login"))}>
-            Sair
-          </button>
-        </div>
-        <button
-          type="button"
-          className="menu-btn"
-          aria-label={menu ? "Fechar menu" : "Abrir menu"}
-          aria-expanded={menu}
-          onClick={() => setMenu((open) => !open)}
-        >
-          <IconMenu width={18} height={18} />
-        </button>
-        {menu ? (
-          <div className="rail-drawer">
-            <p className="user-name">
-            {user ? <Avatar person={{ id: user.id, name: user.name }} size={26} /> : null}
-            <span>{user?.name}</span>
-          </p>
+    <TourProvider>
+      <div className="frame">
+        <header className="rail">
+          <BrandMark />
+          <nav className="main-nav" aria-label="Principal">
+            {LINKS.map((link) => (
+              <button
+                key={link.href}
+                type="button"
+                className={pathname.startsWith(link.href) ? "nav-link active" : "nav-link"}
+                onClick={() => go(link.href)}
+                data-tour={`nav-${link.href.slice(1)}`}
+              >
+                {link.label}
+              </button>
+            ))}
+          </nav>
+          <div className="rail-meta">
             <WorkspaceSwitch />
+            <TourButton />
             <ThemeSwitch />
+            <p className="user-name">
+              {user ? <Avatar person={{ id: user.id, name: user.name }} size={26} /> : null}
+              <span>{user?.name}</span>
+            </p>
             <button type="button" className="text-btn" onClick={() => void logout().then(() => router.push("/login"))}>
               Sair
             </button>
           </div>
-        ) : null}
-      </header>
-      <div className="stage">{children}</div>
-      {active ? (
-        <div className="timer-dock">
-          <p className="timer-kicker">em curso</p>
-          <p className="timer-title">{active.taskTitle}</p>
-          <p className="timer-clock">{formatClock(elapsed)}</p>
           <button
             type="button"
-            className="dock-stop"
-            onClick={() => {
-              const snapshot = active;
-              emitTimer(null, {
-                taskId: snapshot.taskId,
-                seconds: Math.max(1, Math.round((Date.now() - Date.parse(snapshot.startedAt)) / 1000)),
-              });
-              void api("/api/tasks/timer", {
-                method: "POST",
-                body: JSON.stringify({ taskId: snapshot.taskId, action: "stop" }),
-              }).catch(() => {
-                emitTimer(snapshot);
-              });
-            }}
+            className="menu-btn"
+            aria-label={menu ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={menu}
+            onClick={() => setMenu((open) => !open)}
+            // No celular o botão Tutorial mora neste menu: o último passo do tour aponta pra cá.
+            data-tour="tour-button"
           >
-            <IconStop width={14} height={14} />
-            Encerrar
+            <IconMenu width={18} height={18} />
           </button>
-        </div>
-      ) : null}
-      <nav className="tabbar" aria-label="Principal">
-        {LINKS.map((link) => {
-          const on = pathname.startsWith(link.href);
-          return (
+          {menu ? (
+            <div className="rail-drawer">
+              <p className="user-name">
+                {user ? <Avatar person={{ id: user.id, name: user.name }} size={26} /> : null}
+                <span>{user?.name}</span>
+              </p>
+              <WorkspaceSwitch />
+              <TourButton onStart={() => setMenu(false)} />
+              <ThemeSwitch />
+              <button type="button" className="text-btn" onClick={() => void logout().then(() => router.push("/login"))}>
+                Sair
+              </button>
+            </div>
+          ) : null}
+        </header>
+        <div className="stage">{children}</div>
+        {active ? (
+          <div className="timer-dock">
+            <p className="timer-kicker">em curso</p>
+            <p className="timer-title">{active.taskTitle}</p>
+            <p className="timer-clock">{formatClock(elapsed)}</p>
             <button
-              key={link.href}
               type="button"
-              className={on ? "tab-link on" : "tab-link"}
-              onClick={() => go(link.href)}
+              className="dock-stop"
+              onClick={() => {
+                const snapshot = active;
+                emitTimer(null, {
+                  taskId: snapshot.taskId,
+                  seconds: Math.max(1, Math.round((Date.now() - Date.parse(snapshot.startedAt)) / 1000)),
+                });
+                void api("/api/tasks/timer", {
+                  method: "POST",
+                  body: JSON.stringify({ taskId: snapshot.taskId, action: "stop" }),
+                }).catch(() => {
+                  emitTimer(snapshot);
+                });
+              }}
             >
-              <link.Icon width={18} height={18} />
-              {link.label}
+              <IconStop width={14} height={14} />
+              Encerrar
             </button>
-          );
-        })}
-      </nav>
-    </div>
+          </div>
+        ) : null}
+        <nav className="tabbar" aria-label="Principal">
+          {LINKS.map((link) => {
+            const on = pathname.startsWith(link.href);
+            return (
+              <button
+                key={link.href}
+                type="button"
+                className={on ? "tab-link on" : "tab-link"}
+                onClick={() => go(link.href)}
+                data-tour={`nav-${link.href.slice(1)}`}
+              >
+                <link.Icon width={18} height={18} />
+                {link.label}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </TourProvider>
   );
 }

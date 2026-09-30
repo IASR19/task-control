@@ -30,7 +30,7 @@ export function WorkspaceSwitch() {
   if (!workspaces.length) return null;
 
   return (
-    <label className="workspace-switch">
+    <label className="workspace-switch" data-tour="workspace-switch">
       <span className="sr-only">Workspace</span>
       <select
         value={sharedId ? `/compartilhado/${sharedId}` : HOME}

@@ -134,7 +134,7 @@ export default function AtividadesPage() {
         </div>
       </div>
 
-      <div className="period-bar">
+      <div className="period-bar" data-tour="periods">
         <div className="view-tabs">
           {PRESETS.map((item) => (
             <button

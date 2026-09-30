@@ -7,6 +7,7 @@ import { useAuth } from "@/context/auth-context";
 import { ProjectNameField } from "@/components/project-name-field";
 import { IconCheck, IconPlay, IconStop } from "@/components/icons";
 import { lateReason } from "@/lib/deadline";
+import { isDemo } from "@/lib/tour-demo";
 import { formatDuration, formatStamp } from "@/lib/format";
 import { effortStamp } from "@/lib/effort";
 import { columnOrder, listOrder } from "@/lib/order";
@@ -51,7 +52,7 @@ function DeadlineChip({ task }: { task: Task }) {
   const now = useMinuteNow(Boolean(task.deadlineAt) && task.status !== "done");
   if (!task.deadlineAt) return null;
   return (
-    <span className={lateReason(task, now) ? "dl-chip late" : "dl-chip"}>DL {formatStamp(task.deadlineAt)}</span>
+    <span className={lateReason(task, now) ? "dl-chip late" : "dl-chip"}>Limite {formatStamp(task.deadlineAt)}</span>
   );
 }
 
@@ -94,6 +95,7 @@ export function DoneToggle({
         onToggle(task);
       }}
       aria-label={done ? "Reabrir tarefa" : "Marcar como concluída"}
+      disabled={isDemo(task.id)}
       title={done ? "Reabrir" : "Marcar como concluída"}
     >
       <IconCheck width={12} height={12} />
@@ -115,12 +117,13 @@ function TaskActions({
   tiny?: boolean;
 }) {
   return (
-    <div className={tiny ? "task-actions tiny" : "task-actions"}>
+    <div className={tiny ? "task-actions tiny" : "task-actions"} data-tour="task-actions">
       {task.status !== "done" ? (
         <button
           type="button"
           className={running ? `timer-btn${tiny ? " tiny" : ""} on` : `timer-btn${tiny ? " tiny" : ""}`}
           onClick={() => onTimer(task)}
+          disabled={isDemo(task.id)}
           aria-label={running ? "Encerrar timer" : "Começar timer"}
         >
           {running ? (
@@ -169,10 +172,11 @@ export function TaskRow({
   return (
     <article
       className={`task-row ${task.status}${dragging ? " dragging" : ""}${dropBefore ? " drop-before" : ""}`}
-      draggable={draggable}
+      draggable={draggable && !isDemo(task.id)}
       onDragStart={onDragStart ? (event) => onDragStart(event, task) : undefined}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver ? (event) => onDragOver(event, task) : undefined}
+      data-tour="task-card"
     >
       {seq ? <span className="seq">{seq}</span> : null}
       <div
@@ -194,6 +198,7 @@ export function TaskRow({
             {task.title}
           </p>
           <p className="task-meta">
+            {isDemo(task.id) ? <span className="demo-chip">Exemplo</span> : null}
             <span className="proj-name">{task.projectName}</span>
             {note ? <span className="task-flag">{note}</span> : null}
             {task.effort ? <span className="effort-chip">{effortStamp(task.effort)}</span> : null}
@@ -272,6 +277,7 @@ export function PriorityBoard({
               setOver({ priority: column.value, beforeId: null });
             }}
             onDrop={(event) => dropOn(event, column.value, over?.priority === column.value ? over.beforeId : null)}
+            data-tour="priority-col"
           >
             <header>
               <PriorityStamp priority={column.value as Priority} large />

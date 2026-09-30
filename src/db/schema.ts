@@ -117,6 +117,18 @@ export const taskAssignees = pgTable(
   (table) => [primaryKey({ columns: [table.taskId, table.userId] })],
 );
 
+export const userTutorials = pgTable(
+  "user_tutorials",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tourKey: text("tour_key").notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.tourKey] })],
+);
+
 export const timeSessions = pgTable("time_sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")

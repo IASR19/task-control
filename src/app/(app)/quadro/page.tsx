@@ -8,10 +8,14 @@ import { PriorityBoard, ProjectMural, TaskListView } from "@/components/quadro-v
 import { TaskEditor } from "@/components/task-editor";
 import { Spinner } from "@/components/spinner";
 import { TaskFilters } from "@/components/task-filters";
+import { useAuth } from "@/context/auth-context";
+import { useTour } from "@/context/tour-context";
 import { api } from "@/lib/api";
 import { applyTaskFilters, EMPTY_FILTERS, toggleValue, type TaskFilters as Filters } from "@/lib/filters";
 import { columnOrder, insertBefore, sameOrder } from "@/lib/order";
 import { emitTimer, readTimerDetail, sessionElapsed, TIMER_EVENT } from "@/lib/timer-sync";
+import { demoBoard, isDemo } from "@/lib/tour-demo";
+import { LOUSA_KEY } from "@/lib/tour-steps";
 import type { Priority, Project, Task, TaskSavePayload, TaskStatus } from "@/lib/types";
 
 type View = "prioridade" | "lista" | "mural";
@@ -36,6 +40,9 @@ export default function QuadroPage() {
   const [projectName, setProjectName] = useState("");
   const [sharing, setSharing] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { offer, isRunningOn } = useTour();
+  const touring = isRunningOn("/quadro");
 
   function setRunning(next: string | null) {
     runningIdRef.current = next;
@@ -151,11 +158,26 @@ export default function QuadroPage() {
   }, []);
 
   const live = useMemo(() => tasks.filter((task) => task.status !== "done"), [tasks]);
-  const visible = useMemo(() => applyTaskFilters(live, filters), [live, filters]);
+  // Quadro sem task aberta durante o tutorial: mostra um projeto e duas tasks de exemplo, só na tela.
+  const demo = useMemo(
+    () => (touring && !loading && live.length === 0 && user ? demoBoard({ id: user.id, name: user.name }) : null),
+    [touring, loading, live.length, user],
+  );
+  const shownProjects = useMemo(() => (demo ? [...projects, demo.project] : projects), [projects, demo]);
+  const visible = useMemo(() => (demo ? demo.tasks : applyTaskFilters(live, filters)), [demo, live, filters]);
   const muralProjects = useMemo(() => {
-    if (!filters.projectIds.length) return projects;
-    return projects.filter((project) => filters.projectIds.includes(project.id));
-  }, [projects, filters.projectIds]);
+    if (!filters.projectIds.length) return shownProjects;
+    return shownProjects.filter((project) => filters.projectIds.includes(project.id));
+  }, [shownProjects, filters.projectIds]);
+
+  useEffect(() => {
+    if (!loading) offer("lousa", LOUSA_KEY);
+  }, [loading, offer]);
+
+  // Os alvos do tutorial (colunas, card) estão na visão por prioridade.
+  useEffect(() => {
+    if (touring) setView("prioridade");
+  }, [touring]);
 
   async function saveTask(payload: TaskSavePayload) {
     if (payload.id) {
@@ -173,6 +195,7 @@ export default function QuadroPage() {
   }
 
   async function toggleTimer(task: Task) {
+    if (isDemo(task.id)) return;
     const current = runningIdRef.current;
     const action = current === task.id ? "stop" : "start";
     const closed =
@@ -255,6 +278,7 @@ export default function QuadroPage() {
   }
 
   async function toggleDone(task: Task) {
+    if (isDemo(task.id)) return;
     const next: TaskStatus = task.status === "done" ? "open" : "done";
     const snapshot = task;
     setTasks((current) =>
@@ -295,6 +319,7 @@ export default function QuadroPage() {
     task: Task,
     next: { priority?: Priority; projectId?: string; beforeId?: string | null },
   ) {
+    if (isDemo(task.id) || (next.projectId && isDemo(next.projectId))) return;
     const byPriority = next.priority !== undefined;
     const destPriority = next.priority ?? task.priority;
     const destProjectId = next.projectId ?? task.projectId;
@@ -374,6 +399,7 @@ export default function QuadroPage() {
   }
 
   async function renameProject(id: string, name: string) {
+    if (isDemo(id)) return;
     await api("/api/projects", {
       method: "PATCH",
       body: JSON.stringify({ id, name }),
@@ -382,6 +408,7 @@ export default function QuadroPage() {
   }
 
   function openTask(task: Task) {
+    if (isDemo(task.id)) return;
     setEditing(task);
     setEditorOpen(true);
   }
@@ -396,7 +423,7 @@ export default function QuadroPage() {
           </h1>
         </div>
         <div className="toolbar">
-          <div className="view-tabs">
+          <div className="view-tabs" data-tour="views">
             <button type="button" className={view === "prioridade" ? "on" : ""} onClick={() => setView("prioridade")}>
               <IconMark width={12} height={12} /> Prioridade
             </button>
@@ -415,6 +442,7 @@ export default function QuadroPage() {
               setEditorOpen(true);
             }}
             disabled={projects.length === 0}
+            data-tour="new-task"
           >
             Nova task
           </button>
@@ -429,15 +457,20 @@ export default function QuadroPage() {
         onChange={setFilters}
       />
 
-      <div className="project-rail">
-        {projects.map((project) => (
+      <div className="project-rail" data-tour="projects">
+        {shownProjects.map((project) => (
           <ProjectNameField
             key={project.id}
             project={project}
             selected={filters.projectIds.includes(project.id)}
-            onToggle={() => setFilters((current) => ({ ...current, projectIds: toggleValue(current.projectIds, project.id) }))}
+            onToggle={() => {
+              if (isDemo(project.id)) return;
+              setFilters((current) => ({ ...current, projectIds: toggleValue(current.projectIds, project.id) }));
+            }}
             onRename={renameProject}
-            onShare={() => setSharing(project)}
+            onShare={() => {
+              if (!isDemo(project.id)) setSharing(project);
+            }}
           />
         ))}
         <form onSubmit={createProject} className="project-create">
@@ -454,7 +487,7 @@ export default function QuadroPage() {
 
       {loading ? (
         <Spinner label="Puxando o quadro…" />
-      ) : projects.length === 0 ? (
+      ) : shownProjects.length === 0 ? (
         <div className="empty-state">
           <p>
             A lousa está apagada. Vai em <strong>Foto</strong> e manda um print do quadro, ou cria o
@@ -473,7 +506,7 @@ export default function QuadroPage() {
           onToggleDone={toggleDone}
           runningId={runningId}
           timerStartedAt={timerStartedAt}
-          visiblePriorities={filters.priorities}
+          visiblePriorities={demo ? undefined : filters.priorities}
           onMove={(task, priority, beforeId) => void moveTask(task, { priority, beforeId })}
         />
       ) : view === "lista" ? (

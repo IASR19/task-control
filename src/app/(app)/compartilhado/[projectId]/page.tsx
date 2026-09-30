@@ -5,9 +5,12 @@ import { AssigneePicker, TaskPeople } from "@/components/avatar";
 import { Spinner } from "@/components/spinner";
 import { DescriptionFields, type DraftImage } from "@/components/task-description";
 import { useAuth } from "@/context/auth-context";
+import { useTour } from "@/context/tour-context";
 import { api } from "@/lib/api";
 import { fromLocalInput } from "@/lib/deadline";
 import { formatStamp } from "@/lib/format";
+import { demoGuestTask, isDemo } from "@/lib/tour-demo";
+import { sharedKey } from "@/lib/tour-steps";
 import type { GuestTask, Person, SharedWorkspace, TaskImage, TaskStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -26,13 +29,15 @@ function toggle(list: string[], id: string) {
 function GuestTaskCard({
   task,
   people,
-  canAssign,
+  isOwner,
   onAssigned,
+  onDeleted,
 }: {
   task: GuestTask;
   people: Person[];
-  canAssign: boolean;
+  isOwner: boolean;
   onAssigned: (taskId: string, assignees: Person[]) => void;
+  onDeleted: (taskId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [images, setImages] = useState<TaskImage[] | null>(null);
@@ -47,7 +52,10 @@ function GuestTaskCard({
       .catch(() => setImages([]));
   }, [open, images, task.id, task.imageCount]);
 
+  const demo = isDemo(task.id);
+
   async function assign(id: string) {
+    if (demo) return;
     setBusy(true);
     setError("");
     try {
@@ -63,16 +71,33 @@ function GuestTaskCard({
     }
   }
 
+  async function remove() {
+    if (demo) return;
+    if (!window.confirm("Apagar essa task? Ela some do quadro de todo mundo.")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/tasks?id=${task.id}`, { method: "DELETE" });
+      onDeleted(task.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não apagou a task.");
+      setBusy(false);
+    }
+  }
+
   return (
-    <li className={`guest-task ${task.status}`}>
+    <li className={`guest-task ${task.status}`} data-tour="shared-card">
       <button type="button" className="guest-task-head" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        <span className="guest-title">{task.title}</span>
+        <span className="guest-title">
+          {demo ? <span className="demo-chip">Exemplo</span> : null}
+          {task.title}
+        </span>
         <span className={`guest-status ${task.status}`}>{STATUS_LABEL[task.status]}</span>
       </button>
       <div className="guest-meta">
         <TaskPeople owner={{ id: task.ownerId, name: task.ownerName }} assignees={task.assignees} size={20} />
         <span>criada {formatStamp(task.createdAt)}</span>
-        {task.deadlineAt ? <span>DL {formatStamp(task.deadlineAt)}</span> : null}
+        {task.deadlineAt ? <span>limite {formatStamp(task.deadlineAt)}</span> : null}
         {task.completedAt ? <span>fechada {formatStamp(task.completedAt)}</span> : null}
         {task.imageCount ? <span>{task.imageCount} img</span> : null}
       </div>
@@ -91,18 +116,23 @@ function GuestTaskCard({
               ))}
             </ul>
           ) : null}
-          {canAssign ? (
+          {isOwner ? (
             <div className="guest-assign">
               <span className="field-hint">Responsáveis</span>
               <AssigneePicker
                 people={people}
                 selected={task.assignees.map((person) => person.id)}
                 onToggle={(id) => void assign(id)}
-                disabled={busy}
+                disabled={busy || demo}
                 lockedId={task.ownerId}
               />
-              {error ? <p className="form-error">{error}</p> : null}
             </div>
+          ) : null}
+          {error ? <p className="form-error">{error}</p> : null}
+          {isOwner ? (
+            <button type="button" className="text-btn danger guest-delete" disabled={busy || demo} onClick={() => void remove()}>
+              Apagar task
+            </button>
           ) : null}
         </div>
       ) : null}
@@ -119,6 +149,7 @@ function GuestTaskCard({
 export default function SharedWorkspacePage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
   const { user } = useAuth();
+  const { offer, isRunningOn } = useTour();
   const [workspace, setWorkspace] = useState<SharedWorkspace | null>(null);
   const [tasks, setTasks] = useState<GuestTask[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
@@ -150,11 +181,25 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
       .finally(() => setLoading(false));
   }, [load]);
 
+  // Projeto sem tasks durante o tutorial: uma task de exemplo, só na tela.
+  const demoTask = useMemo(
+    () =>
+      isRunningOn("/compartilhado/") && tasks.length === 0 && workspace && user
+        ? demoGuestTask({ id: user.id, name: user.name }, workspace.ownerName)
+        : null,
+    [isRunningOn, tasks.length, workspace, user],
+  );
+
+  useEffect(() => {
+    if (workspace) offer("shared", sharedKey(workspace.projectId));
+  }, [workspace, offer]);
+
   const visible = useMemo(() => {
+    if (demoTask) return [demoTask];
     if (scope === "mine") return tasks.filter((task) => task.ownerId === user?.id);
     if (scope === "assigned") return tasks.filter((task) => task.assignees.some((person) => person.id === user?.id));
     return tasks;
-  }, [tasks, scope, user?.id]);
+  }, [demoTask, tasks, scope, user?.id]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -197,7 +242,7 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
 
   return (
     <div className="guest-page">
-      <div className="page-head">
+      <div className="page-head" data-tour="shared-head">
         <div>
           <p className="kicker">Compartilhado por {workspace.ownerName}</p>
           <h1>{workspace.projectName}</h1>
@@ -205,7 +250,7 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
       </div>
 
       <div className="guest-grid">
-        <form className="guest-form sheet-body" onSubmit={submit}>
+        <form className="guest-form sheet-body" onSubmit={submit} data-tour="shared-form">
           <p className="kicker">Nova task</p>
           <label>
             Título
@@ -217,7 +262,7 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
             </div>
             <DescriptionFields text={notes} images={images} onText={setNotes} onImages={setImages} />
           </div>
-          <fieldset>
+          <fieldset data-tour="shared-assignees">
             <legend>Responsáveis</legend>
             <AssigneePicker
               people={people}
@@ -227,7 +272,7 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
             />
           </fieldset>
           <label>
-            DL (opcional)
+            Data limite (opcional)
             <input type="datetime-local" value={deadlineAt} onChange={(event) => setDeadlineAt(event.target.value)} />
           </label>
           {error ? <p className="form-error">{error}</p> : null}
@@ -237,7 +282,7 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
         </form>
 
         <section>
-          <div className="guest-list-head">
+          <div className="guest-list-head" data-tour="shared-list">
             <p className="kicker">Tasks do projeto · {visible.length}</p>
             <div className="view-tabs">
               <button type="button" className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>
@@ -260,10 +305,11 @@ export default function SharedWorkspacePage({ params }: { params: Promise<{ proj
                   key={task.id}
                   task={task}
                   people={people}
-                  canAssign={task.ownerId === user?.id}
+                  isOwner={task.ownerId === user?.id}
                   onAssigned={(taskId, assignees) =>
                     setTasks((current) => current.map((item) => (item.id === taskId ? { ...item, assignees } : item)))
                   }
+                  onDeleted={(taskId) => setTasks((current) => current.filter((item) => item.id !== taskId))}
                 />
               ))}
             </ul>

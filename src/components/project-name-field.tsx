@@ -2,6 +2,7 @@
 
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 import { IconEdit, IconShare } from "@/components/icons";
+import { isDemo } from "@/lib/tour-demo";
 import type { Project } from "@/lib/types";
 
 type Props = {
@@ -96,11 +97,13 @@ export function ProjectNameField({
       <button type="button" onClick={onToggle} title="Filtrar por este projeto">
         {project.name}
         {project.openCount ? <em>{project.openCount}</em> : null}
+        {isDemo(project.id) ? <span className="demo-chip">Exemplo</span> : null}
       </button>
       <button
         type="button"
         className="chip-edit"
         onClick={() => setEditing(true)}
+        disabled={isDemo(project.id)}
         aria-label={`Renomear ${project.name}`}
       >
         <IconEdit width={11} height={11} />
@@ -110,6 +113,7 @@ export function ProjectNameField({
           type="button"
           className={project.shared ? "chip-edit chip-share on" : "chip-edit chip-share"}
           onClick={onShare}
+          disabled={isDemo(project.id)}
           aria-label={`Compartilhar ${project.name}`}
           title={project.shared ? "Compartilhado por link" : "Compartilhar por link"}
         >

@@ -286,7 +286,7 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, on
                 <input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
               </label>
               <label>
-                DL
+                Data limite
                 <input type="datetime-local" value={deadlineAt} onChange={(event) => setDeadlineAt(event.target.value)} />
               </label>
             </div>
@@ -375,7 +375,7 @@ export function TaskEditor({ open, task, projects, onClose, onSave, onDelete, on
             <button type="submit" className="btn-ink" disabled={busy}>
               {busy ? "Salvando…" : task ? "Atualizar" : "Criar"}
             </button>
-            {task && onDelete ? (
+            {task && onDelete && task.ownerId === user?.id ? (
               <button
                 type="button"
                 className="text-btn danger"

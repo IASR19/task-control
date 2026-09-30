@@ -104,7 +104,7 @@ export default function LousaPage() {
           }}
         />
       ) : (
-        <label className="dropzone">
+        <label className="dropzone" data-tour="dropzone">
           <input
             type="file"
             accept="image/*"

@@ -28,7 +28,7 @@ export function lateReason(
 ) {
   if (!task.deadlineAt || task.status === "done") return null;
   const deadline = Date.parse(task.deadlineAt);
-  if (now > deadline) return "Passou do DL";
-  if (task.endAt && Date.parse(task.endAt) > deadline) return "End depois do DL";
+  if (now > deadline) return "Passou da data limite";
+  if (task.endAt && Date.parse(task.endAt) > deadline) return "End depois da data limite";
   return null;
 }
